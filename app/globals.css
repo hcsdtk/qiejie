@@ -135,15 +135,24 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .shortcut-note kbd { min-width: 19px; height: 19px; display: grid; place-items: center; border: 1px solid #dedbd4; background: #faf9f6; border-radius: 4px; font: 9px var(--font-mono), monospace; color: #77746c; }
 .shortcut-note span { margin-left: 4px; }
 
-.stage-heading { height: 60px; flex: 0 0 60px; padding: 0 18px; border-bottom: 1px solid var(--soft-line); display: flex; align-items: center; justify-content: space-between; }
+.stage-heading { min-height: 60px; flex: 0 0 60px; padding: 0 14px 0 18px; border-bottom: 1px solid var(--soft-line); display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .stage-heading strong { display: block; font-size: 12px; margin-bottom: 4px; }
 .stage-heading span { display: block; font-size: 9px; color: #96938b; }
 .replace-button { border: 1px solid var(--soft-line); background: white; height: 30px; padding: 0 11px; border-radius: 5px; font-size: 10px; font-weight: 700; }
+.stage-controls { display: flex; align-items: center; gap: 7px; }
+.zoom-controls { height: 30px; display: flex; align-items: stretch; border: 1px solid var(--soft-line); background: #f8f7f3; border-radius: 5px; overflow: hidden; }
+.zoom-controls button { min-width: 29px; border: 0; border-right: 1px solid var(--soft-line); background: transparent; padding: 0 7px; font-size: 10px; font-weight: 700; color: #6f6c65; }
+.zoom-controls button:last-child { border-right: 0; }
+.zoom-controls button:hover:not(:disabled), .zoom-controls button.active { background: var(--ink); color: white; }
+.zoom-controls button:disabled { color: #c5c2bb; }
+.zoom-controls .zoom-value { min-width: 48px; font: 9px var(--font-mono), monospace; color: var(--ink); background: white; }
 
 .canvas-stage { flex: 1; min-height: 0; margin: 12px; position: relative; display: grid; place-items: center; overflow: hidden; background-color: #f3f2ed; background-image: radial-gradient(#d8d5ce 1px, transparent 1px); background-size: 18px 18px; border: 1px dashed #d1cec6; transition: .18s ease; }
 .canvas-stage.dragging { border-color: var(--accent); background-color: #fff7f4; }
 .canvas-stage.has-image { border-style: solid; background-color: #e8e6df; }
-.editor-canvas { display: block; max-width: calc(100% - 28px); max-height: calc(100% - 28px); width: auto; height: auto; background: white; box-shadow: 0 18px 50px rgba(41, 37, 29, .16); touch-action: none; cursor: crosshair; user-select: none; }
+.canvas-viewport { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; scrollbar-color: #aaa69d transparent; scrollbar-width: thin; }
+.canvas-viewport-inner { min-width: 100%; min-height: 100%; width: max-content; height: max-content; padding: 17px; display: grid; place-items: center; }
+.editor-canvas { display: block; max-width: none; max-height: none; flex: none; background: white; box-shadow: 0 18px 50px rgba(41, 37, 29, .16); touch-action: none; cursor: crosshair; user-select: none; }
 .angle-readout { position: absolute; right: 22px; top: 22px; background: rgba(24,24,23,.92); color: white; min-width: 75px; padding: 8px 10px; pointer-events: none; box-shadow: 0 4px 16px rgba(0,0,0,.18); }
 .angle-readout b { display: block; font: 12px var(--font-mono), monospace; color: #ff8a6e; margin-bottom: 2px; }
 .angle-readout span { font-size: 8px; color: #d8d5ce; }
@@ -233,6 +242,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
   .steps-bar > i { width: 18px; }
   .step { gap: 5px; font-size: 10px; }
   .stage-panel { min-height: 600px; }
+  .stage-heading { flex-basis: auto; padding: 8px 10px; align-items: flex-start; }
+  .stage-heading > div:first-child { display: none; }
+  .stage-controls { width: 100%; justify-content: space-between; }
   .stage-heading span { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .canvas-stage { margin: 8px; }
   .stage-footer { align-items: stretch; flex-direction: column; }

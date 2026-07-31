@@ -40,6 +40,9 @@ test("ships the completed product surface", async () => {
   assert.match(page, /saveAllFiles/);
   assert.match(page, /downloadZip/);
   assert.match(page, /assistLineEnd/);
+  assert.match(page, /fitViewScale/);
+  assert.match(page, /canvas-viewport/);
+  assert.match(page, /Ctrl\/⌘ \+ 滚轮/);
   assert.match(layout, /切界 — 画线分割图片/);
   assert.match(layout, /og\.png/);
   assert.match(packageJson, /"fflate"/);

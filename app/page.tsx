@@ -4,6 +4,7 @@ import {
   ChangeEvent,
   DragEvent,
   PointerEvent as ReactPointerEvent,
+  WheelEvent as ReactWheelEvent,
   useCallback,
   useEffect,
   useRef,
@@ -43,6 +44,8 @@ type DirectoryHandleLike = {
 
 const MAX_PIXELS = 8_000_000;
 const MAX_EDGE = 3_200;
+const MIN_VIEW_SCALE = 0.05;
+const MAX_VIEW_SCALE = 4;
 const PIECE_COLORS = ["#ff5a36", "#4773ff", "#16a778", "#8e5cff", "#e4a11b"];
 
 function formatDimensions(width: number, height: number) {
@@ -192,8 +195,13 @@ function triggerDownload(url: string, filename: string) {
   anchor.remove();
 }
 
+function clampViewScale(scale: number) {
+  return Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, scale));
+}
+
 export default function Home() {
   const editorCanvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasViewportRef = useRef<HTMLDivElement>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lineIdRef = useRef(1);
@@ -205,6 +213,9 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processLabel, setProcessLabel] = useState("");
   const [message, setMessage] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"fit" | "custom">("fit");
+  const [customViewScale, setCustomViewScale] = useState(1);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
   const clearPieces = useCallback(() => {
     setPieces((current) => {
@@ -245,6 +256,8 @@ export default function Home() {
           scale,
         });
         setLines([]);
+        setViewMode("fit");
+        setCustomViewScale(1);
         lineIdRef.current = 1;
         clearPieces();
         setMessage(
@@ -301,6 +314,18 @@ export default function Home() {
     lines.forEach((line) => drawLineOverlay(context, line));
     if (activeLine) drawLineOverlay(context, activeLine, true);
   }, [activeLine, imageInfo, lines]);
+
+  useEffect(() => {
+    const viewport = canvasViewportRef.current;
+    if (!viewport || !imageInfo) return;
+    const updateSize = () => {
+      setViewportSize({ width: viewport.clientWidth, height: viewport.clientHeight });
+    };
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+    return () => observer.disconnect();
+  }, [imageInfo]);
 
   const loadSample = useCallback(async () => {
     const canvas = document.createElement("canvas");
@@ -391,6 +416,33 @@ export default function Home() {
   const undoLine = () => {
     clearPieces();
     setLines((current) => current.slice(0, -1));
+  };
+
+  const fitViewScale = imageInfo
+    ? Math.min(
+        1,
+        Math.max(0.01, (viewportSize.width - 36) / imageInfo.width),
+        Math.max(0.01, (viewportSize.height - 36) / imageInfo.height),
+      )
+    : 1;
+  const viewScale = viewMode === "fit" ? fitViewScale : customViewScale;
+  const viewPercent = Math.max(1, Math.round(viewScale * 100));
+
+  const setExactViewScale = (nextScale: number) => {
+    setCustomViewScale(clampViewScale(nextScale));
+    setViewMode("custom");
+  };
+
+  const zoomView = (direction: 1 | -1) => {
+    const factor = direction > 0 ? 1.2 : 1 / 1.2;
+    setExactViewScale(viewScale * factor);
+  };
+
+  const handleViewWheel = (event: ReactWheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey && !event.metaKey) return;
+    event.preventDefault();
+    const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+    setExactViewScale(viewScale * factor);
   };
 
   const splitImage = async () => {
@@ -721,9 +773,38 @@ export default function Home() {
               <span>{imageInfo ? "端点靠近边缘或已有线条时会自动吸附" : "上传后即可开始分割"}</span>
             </div>
             {imageInfo && (
-              <button type="button" className="replace-button" onClick={() => fileInputRef.current?.click()}>
-                更换图片
-              </button>
+              <div className="stage-controls">
+                <div className="zoom-controls" role="group" aria-label="画布缩放">
+                  <button
+                    type="button"
+                    className={viewMode === "fit" ? "active" : ""}
+                    onClick={() => setViewMode("fit")}
+                    aria-label="使图片适应窗口"
+                  >适应</button>
+                  <button
+                    type="button"
+                    onClick={() => zoomView(-1)}
+                    disabled={viewScale <= MIN_VIEW_SCALE}
+                    aria-label="缩小视图"
+                  >−</button>
+                  <button
+                    type="button"
+                    className="zoom-value"
+                    onClick={() => setExactViewScale(1)}
+                    title="点击恢复 100%"
+                    aria-label={`当前缩放 ${viewPercent}%，点击恢复 100%`}
+                  >{viewPercent}%</button>
+                  <button
+                    type="button"
+                    onClick={() => zoomView(1)}
+                    disabled={viewScale >= MAX_VIEW_SCALE}
+                    aria-label="放大视图"
+                  >＋</button>
+                </div>
+                <button type="button" className="replace-button" onClick={() => fileInputRef.current?.click()}>
+                  更换图片
+                </button>
+              </div>
             )}
           </div>
 
@@ -738,15 +819,27 @@ export default function Home() {
           >
             {imageInfo ? (
               <>
-                <canvas
-                  ref={editorCanvasRef}
-                  className="editor-canvas"
-                  onPointerDown={startLine}
-                  onPointerMove={moveLine}
-                  onPointerUp={finishLine}
-                  onPointerCancel={() => setActiveLine(null)}
-                  aria-label="图片分割画布，拖拽以添加分割线"
-                />
+                <div
+                  ref={canvasViewportRef}
+                  className="canvas-viewport"
+                  onWheel={handleViewWheel}
+                >
+                  <div className="canvas-viewport-inner">
+                    <canvas
+                      ref={editorCanvasRef}
+                      className="editor-canvas"
+                      style={{
+                        width: `${Math.max(1, imageInfo.width * viewScale)}px`,
+                        height: `${Math.max(1, imageInfo.height * viewScale)}px`,
+                      }}
+                      onPointerDown={startLine}
+                      onPointerMove={moveLine}
+                      onPointerUp={finishLine}
+                      onPointerCancel={() => setActiveLine(null)}
+                      aria-label="图片分割画布，拖拽以添加分割线"
+                    />
+                  </div>
+                </div>
                 {activeLine && <div className="angle-readout"><b>{activeAngle}°</b><span>直线辅助</span></div>}
               </>
             ) : (
@@ -779,7 +872,7 @@ export default function Home() {
           <div className="stage-footer">
             <div className={`status-message ${message?.startsWith("完成") ? "success" : ""}`}>
               <span aria-hidden="true">{message?.startsWith("完成") ? "✓" : "i"}</span>
-              {message ?? (imageInfo ? "分割线需要贯穿图片边缘，或与其他线条相连" : "所有处理均在浏览器中完成")}
+              {message ?? (imageInfo ? "分割线需贯穿边缘；Ctrl/⌘ + 滚轮可缩放视图" : "所有处理均在浏览器中完成")}
             </div>
             <button
               className="split-button"
