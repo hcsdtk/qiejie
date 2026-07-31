@@ -248,37 +248,37 @@ function assistLineEnd(
   return snapPoint(clamped, width, height, lines);
 }
 
-function drawReferenceGrid(context: CanvasRenderingContext2D) {
-  const { width, height } = context.canvas;
-  const shortEdge = Math.min(width, height);
-  const spacing = Math.max(36, shortEdge / 8);
-  const centerX = width / 2;
-  const centerY = height / 2;
+function drawMagnifierPreview(target: HTMLCanvasElement, source: HTMLCanvasElement, point: Point) {
+  const size = 120;
+  const zoom = 3.2;
+  target.width = size;
+  target.height = size;
+  const context = target.getContext("2d");
+  if (!context) return;
 
+  context.fillStyle = "#e7e5df";
+  context.fillRect(0, 0, size, size);
   context.save();
-  context.lineWidth = Math.max(1, width / 1_800);
-  context.strokeStyle = "rgba(255,255,255,.52)";
-  context.setLineDash([5, 7]);
-  context.beginPath();
-  for (let x = centerX % spacing; x < width; x += spacing) {
-    context.moveTo(x, 0);
-    context.lineTo(x, height);
-  }
-  for (let y = centerY % spacing; y < height; y += spacing) {
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-  }
-  context.stroke();
-  context.setLineDash([]);
-  context.lineWidth = Math.max(1.5, width / 1_200);
-  context.strokeStyle = "rgba(71,115,255,.72)";
-  context.beginPath();
-  context.moveTo(centerX, 0);
-  context.lineTo(centerX, height);
-  context.moveTo(0, centerY);
-  context.lineTo(width, centerY);
-  context.stroke();
+  context.translate(size / 2 - point.x * zoom, size / 2 - point.y * zoom);
+  context.scale(zoom, zoom);
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = "high";
+  context.drawImage(source, 0, 0);
   context.restore();
+
+  context.strokeStyle = "rgba(255,255,255,.95)";
+  context.lineWidth = 3;
+  context.beginPath();
+  context.moveTo(size / 2 - 13, size / 2);
+  context.lineTo(size / 2 + 13, size / 2);
+  context.moveTo(size / 2, size / 2 - 13);
+  context.lineTo(size / 2, size / 2 + 13);
+  context.stroke();
+  context.strokeStyle = "#ff5a36";
+  context.lineWidth = 1.5;
+  context.beginPath();
+  context.arc(size / 2, size / 2, 5, 0, Math.PI * 2);
+  context.stroke();
 }
 
 function drawLineOverlay(
@@ -395,6 +395,8 @@ export default function Home() {
   const editorCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasViewportRef = useRef<HTMLDivElement>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const startMagnifierRef = useRef<HTMLCanvasElement>(null);
+  const endMagnifierRef = useRef<HTMLCanvasElement>(null);
   const sourceImageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lineIdRef = useRef(1);
@@ -407,6 +409,7 @@ export default function Home() {
   const [selectedLineId, setSelectedLineId] = useState<number | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>("line");
   const [isForceStraight, setIsForceStraight] = useState(false);
+  const [referenceGridVisible, setReferenceGridVisible] = useState(false);
   const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<EditorSnapshot[]>([]);
@@ -420,7 +423,7 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processLabel, setProcessLabel] = useState("");
   const [message, setMessage] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<"fit" | "custom">("fit");
+  const [viewMode, setViewMode] = useState<"fit" | "width" | "height" | "custom">("fit");
   const [customViewScale, setCustomViewScale] = useState(1);
   const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
 
@@ -622,11 +625,19 @@ export default function Home() {
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(baseCanvas, 0, 0);
-    drawReferenceGrid(context);
     lines.forEach((line) => drawLineOverlay(context, line, false, line.id === selectedLineId));
     if (activeLine) drawLineOverlay(context, activeLine, true);
     if (cropSelection) drawCropOverlay(context, cropSelection);
   }, [activeLine, cropSelection, imageInfo, lines, selectedLineId]);
+
+  useEffect(() => {
+    const baseCanvas = baseCanvasRef.current;
+    const startMagnifier = startMagnifierRef.current;
+    const endMagnifier = endMagnifierRef.current;
+    if (!baseCanvas || !activeLine || !startMagnifier || !endMagnifier) return;
+    drawMagnifierPreview(startMagnifier, baseCanvas, activeLine.start);
+    drawMagnifierPreview(endMagnifier, baseCanvas, activeLine.end);
+  }, [activeLine, imageInfo]);
 
   useEffect(() => {
     const viewport = canvasViewportRef.current;
@@ -904,7 +915,19 @@ export default function Home() {
         Math.max(0.01, (viewportSize.height - 36) / imageInfo.height),
       )
     : 1;
-  const viewScale = viewMode === "fit" ? fitViewScale : customViewScale;
+  const widthViewScale = imageInfo
+    ? clampViewScale(Math.max(0.01, (viewportSize.width - 36) / imageInfo.width))
+    : 1;
+  const heightViewScale = imageInfo
+    ? clampViewScale(Math.max(0.01, (viewportSize.height - 36) / imageInfo.height))
+    : 1;
+  const viewScale = viewMode === "fit"
+    ? fitViewScale
+    : viewMode === "width"
+      ? widthViewScale
+      : viewMode === "height"
+        ? heightViewScale
+        : customViewScale;
   const viewPercent = Math.max(1, Math.round(viewScale * 100));
 
   const setExactViewScale = (nextScale: number) => {
@@ -1350,7 +1373,7 @@ export default function Home() {
           <div className="stage-heading">
             <div>
               <strong>{imageInfo ? (toolMode === "crop" ? "拖出要保留的区域" : "画线或选择已有分割线") : "工作画布"}</strong>
-              <span>{imageInfo ? (toolMode === "crop" ? "确认选区后点击左侧“应用裁剪”" : "辅助已启用：智能吸附 · 角度校正 · 参考网格；Shift 强制画直") : "上传后即可开始分割"}</span>
+              <span>{imageInfo ? (toolMode === "crop" ? "确认选区后点击左侧“应用裁剪”" : "智能吸附与角度校正已启用；按住 Shift 强制画直") : "上传后即可开始分割"}</span>
             </div>
             {imageInfo && (
               <div className="stage-controls">
@@ -1361,6 +1384,20 @@ export default function Home() {
                     onClick={() => setViewMode("fit")}
                     aria-label="使图片适应窗口"
                   >适应</button>
+                  <button
+                    type="button"
+                    className={viewMode === "width" ? "active zoom-preset" : "zoom-preset"}
+                    onClick={() => setViewMode("width")}
+                    title="宽度铺满画布"
+                    aria-label="使图片宽度铺满画布"
+                  >宽度</button>
+                  <button
+                    type="button"
+                    className={viewMode === "height" ? "active zoom-preset" : "zoom-preset"}
+                    onClick={() => setViewMode("height")}
+                    title="高度铺满画布"
+                    aria-label="使图片高度铺满画布"
+                  >高度</button>
                   <button
                     type="button"
                     onClick={() => zoomView(-1)}
@@ -1381,6 +1418,13 @@ export default function Home() {
                     aria-label="放大视图"
                   >＋</button>
                 </div>
+                <button
+                  type="button"
+                  className={`canvas-grid-toggle ${referenceGridVisible ? "active" : ""}`}
+                  aria-pressed={referenceGridVisible}
+                  onClick={() => setReferenceGridVisible((current) => !current)}
+                  title="在图片之外的画布背景显示参考网格"
+                ><i aria-hidden="true" />网格</button>
                 <button type="button" className="replace-button" onClick={() => fileInputRef.current?.click()}>
                   更换图片
                 </button>
@@ -1389,7 +1433,7 @@ export default function Home() {
           </div>
 
           <div
-            className={`canvas-stage ${isDragging ? "dragging" : ""} ${imageInfo ? "has-image" : ""}`}
+            className={`canvas-stage ${isDragging ? "dragging" : ""} ${imageInfo ? "has-image" : ""} ${referenceGridVisible ? "show-grid" : ""}`}
             onDragOver={(event) => {
               event.preventDefault();
               setIsDragging(true);
@@ -1421,10 +1465,22 @@ export default function Home() {
                   </div>
                 </div>
                 {activeLine && (
-                  <div className={`angle-readout ${isForceStraight || activeAngleIsStandard ? "locked" : ""}`}>
-                    <b>{activeAngle}°</b>
-                    <span>{isForceStraight ? "SHIFT 已锁定" : activeAngleIsStandard ? "已校正为标准角度" : "接近标准角度会自动校正"}</span>
-                  </div>
+                  <>
+                    <div className="line-magnifiers" aria-label="分割线起点与落点放大预览">
+                      <figure>
+                        <canvas ref={startMagnifierRef} />
+                        <figcaption><b>起点</b><span>{Math.round((activeLine.start.x / imageInfo.width) * 100)}%, {Math.round((activeLine.start.y / imageInfo.height) * 100)}%</span></figcaption>
+                      </figure>
+                      <figure>
+                        <canvas ref={endMagnifierRef} />
+                        <figcaption><b>落点</b><span>{Math.round((activeLine.end.x / imageInfo.width) * 100)}%, {Math.round((activeLine.end.y / imageInfo.height) * 100)}%</span></figcaption>
+                      </figure>
+                    </div>
+                    <div className={`angle-readout ${isForceStraight || activeAngleIsStandard ? "locked" : ""}`}>
+                      <b>{activeAngle}°</b>
+                      <span>{isForceStraight ? "SHIFT 已锁定" : activeAngleIsStandard ? "已校正为标准角度" : "接近标准角度会自动校正"}</span>
+                    </div>
+                  </>
                 )}
               </>
             ) : (

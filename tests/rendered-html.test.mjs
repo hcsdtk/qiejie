@@ -50,9 +50,15 @@ test("ships the completed product surface", async () => {
   assert.match(page, /undoEditor/);
   assert.match(page, /forceAngle: event\.shiftKey/);
   assert.match(page, /SHIFT 已锁定/);
-  assert.match(page, /drawReferenceGrid/);
-  assert.match(page, /辅助已启用：智能吸附 · 角度校正 · 参考网格/);
-  assert.doesNotMatch(page, /setSnapEnabled|setAngleAssistEnabled|setReferenceGridVisible/);
+  assert.match(page, /drawMagnifierPreview/);
+  assert.match(page, /startMagnifierRef/);
+  assert.match(page, /referenceGridVisible/);
+  assert.match(page, /widthViewScale/);
+  assert.match(page, /heightViewScale/);
+  assert.match(page, /使图片宽度铺满画布/);
+  assert.match(page, /使图片高度铺满画布/);
+  assert.doesNotMatch(page, /drawReferenceGrid/);
+  assert.doesNotMatch(page, /setSnapEnabled|setAngleAssistEnabled/);
   assert.match(page, /image\/webp/);
   assert.match(page, /导出仍使用原图像素/);
   assert.match(page, /tool-panel-scroll/);

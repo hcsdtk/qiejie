@@ -189,11 +189,17 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .zoom-controls button:last-child { border-right: 0; }
 .zoom-controls button:hover:not(:disabled), .zoom-controls button.active { background: var(--ink); color: white; }
 .zoom-controls button:disabled { color: #c5c2bb; }
+.zoom-controls .zoom-preset { min-width: 39px; }
 .zoom-controls .zoom-value { min-width: 48px; font: 9px var(--font-mono), monospace; color: var(--ink); background: white; }
+.canvas-grid-toggle { height: 30px; display: flex; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid var(--soft-line); border-radius: 5px; background: white; color: #77746c; font-size: 9px; font-weight: 700; }
+.canvas-grid-toggle i { width: 13px; height: 13px; border: 1px solid #aaa69d; background-image: linear-gradient(#dedbd4 1px, transparent 1px), linear-gradient(90deg, #dedbd4 1px, transparent 1px); background-size: 4px 4px; }
+.canvas-grid-toggle.active { border-color: #8fbfae; background: #e8f4ee; color: var(--success); }
+.canvas-grid-toggle.active i { border-color: var(--success); background-image: linear-gradient(#acd9c9 1px, transparent 1px), linear-gradient(90deg, #acd9c9 1px, transparent 1px); }
 
 .canvas-stage { flex: 1; min-height: 0; margin: 12px; position: relative; display: grid; place-items: center; overflow: hidden; background-color: #f3f2ed; background-image: radial-gradient(#d8d5ce 1px, transparent 1px); background-size: 18px 18px; border: 1px dashed #d1cec6; transition: .18s ease; }
 .canvas-stage.dragging { border-color: var(--accent); background-color: #fff7f4; }
 .canvas-stage.has-image { border-style: solid; background-color: #e8e6df; }
+.canvas-stage.show-grid { background-image: linear-gradient(rgba(133,129,120,.22) 1px, transparent 1px), linear-gradient(90deg, rgba(133,129,120,.22) 1px, transparent 1px); background-size: 24px 24px; }
 .canvas-viewport { position: absolute; inset: 0; overflow: auto; overscroll-behavior: contain; scrollbar-color: #aaa69d transparent; scrollbar-width: thin; }
 .canvas-viewport-inner { min-width: 100%; min-height: 100%; width: max-content; height: max-content; padding: 17px; display: grid; place-items: center; }
 .editor-canvas { display: block; max-width: none; max-height: none; flex: none; background: white; box-shadow: 0 18px 50px rgba(41, 37, 29, .16); touch-action: none; cursor: crosshair; user-select: none; }
@@ -203,6 +209,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .angle-readout span { font-size: 8px; color: #d8d5ce; }
 .angle-readout.locked { background: rgba(35, 72, 180, .94); }
 .angle-readout.locked b { color: white; }
+.line-magnifiers { position: absolute; left: 22px; top: 22px; z-index: 3; display: flex; gap: 8px; pointer-events: none; }
+.line-magnifiers figure { width: 92px; margin: 0; padding: 5px; border: 1px solid rgba(255,255,255,.45); background: rgba(24,24,23,.92); box-shadow: 0 5px 18px rgba(0,0,0,.2); }
+.line-magnifiers canvas { display: block; width: 80px; height: 80px; border: 1px solid rgba(255,255,255,.3); background: #e7e5df; }
+.line-magnifiers figcaption { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding-top: 5px; color: #d8d5ce; font: 7px var(--font-mono), monospace; }
+.line-magnifiers figcaption b { color: #ff8a6e; font: 8px var(--font-geist-sans), sans-serif; }
 
 .upload-state { text-align: center; width: min(420px, 90%); }
 .upload-art { width: 128px; height: 100px; margin: 0 auto 18px; position: relative; }
@@ -281,6 +292,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .empty-results p { margin: 0; font-size: 10px; line-height: 1.6; }
 .empty-results > span { display: inline-block; margin-top: 16px; padding-top: 10px; border-top: 1px solid var(--soft-line); font-size: 8px; color: #b4b1aa; }
 
+@media (max-width: 1200px) {
+  .stage-heading > div:first-child { display: none; }
+  .stage-controls { width: 100%; justify-content: flex-end; }
+}
+
 @media (max-width: 1080px) {
   .workbench { grid-template-columns: 205px minmax(430px, 1fr) 250px; }
   .tool-card small { white-space: normal; }
@@ -306,9 +322,14 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
   .stage-panel { min-height: 600px; }
   .stage-heading { flex-basis: auto; padding: 8px 10px; align-items: flex-start; }
   .stage-heading > div:first-child { display: none; }
-  .stage-controls { width: 100%; justify-content: space-between; }
+  .stage-controls { width: 100%; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
+  .zoom-controls button { padding: 0 5px; }
+  .zoom-controls .zoom-preset { min-width: 34px; }
   .stage-heading span { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .canvas-stage { margin: 8px; }
+  .line-magnifiers { left: 10px; top: auto; bottom: 10px; gap: 5px; }
+  .line-magnifiers figure { width: 70px; }
+  .line-magnifiers canvas { width: 58px; height: 58px; }
   .stage-footer { align-items: stretch; flex-direction: column; }
   .split-button { width: 100%; }
   .status-message { min-height: 24px; }
