@@ -62,8 +62,10 @@ type DirectoryHandleLike = {
   }>;
 };
 
-const MAX_PIXELS = 8_000_000;
-const MAX_EDGE = 3_200;
+const MAX_PROCESS_PIXELS = 8_000_000;
+const MAX_PROCESS_EDGE = 3_200;
+const MAX_EDITOR_PIXELS = 32_000_000;
+const MAX_EDITOR_EDGE = 8_192;
 const MIN_VIEW_SCALE = 0.05;
 const MAX_VIEW_SCALE = 4;
 const PIECE_COLORS = ["#ff5a36", "#4773ff", "#16a778", "#8e5cff", "#e4a11b"];
@@ -97,10 +99,18 @@ function multiplyMatrices(left: Matrix2D, right: Matrix2D): Matrix2D {
   };
 }
 
-function getPreviewScale(width: number, height: number) {
-  const areaScale = Math.sqrt(MAX_PIXELS / (width * height));
-  const edgeScale = MAX_EDGE / Math.max(width, height);
+function getBoundedScale(width: number, height: number, maxPixels: number, maxEdge: number) {
+  const areaScale = Math.sqrt(maxPixels / (width * height));
+  const edgeScale = maxEdge / Math.max(width, height);
   return Math.min(1, areaScale, edgeScale);
+}
+
+function getProcessingScale(width: number, height: number) {
+  return getBoundedScale(width, height, MAX_PROCESS_PIXELS, MAX_PROCESS_EDGE);
+}
+
+function getEditorScale(width: number, height: number) {
+  return getBoundedScale(width, height, MAX_EDITOR_PIXELS, MAX_EDITOR_EDGE);
 }
 
 function distanceToSegment(point: Point, line: CutLine) {
@@ -248,37 +258,41 @@ function assistLineEnd(
   return snapPoint(clamped, width, height, lines);
 }
 
-function drawMagnifierPreview(target: HTMLCanvasElement, source: HTMLCanvasElement, point: Point) {
-  const size = 120;
-  const zoom = 3.2;
-  target.width = size;
-  target.height = size;
-  const context = target.getContext("2d");
-  if (!context) return;
+function drawReferenceGrid(context: CanvasRenderingContext2D) {
+  const { width, height } = context.canvas;
+  const spacing = Math.max(12, Math.min(width, height) / 24);
 
-  context.fillStyle = "#e7e5df";
-  context.fillRect(0, 0, size, size);
   context.save();
-  context.translate(size / 2 - point.x * zoom, size / 2 - point.y * zoom);
-  context.scale(zoom, zoom);
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  context.drawImage(source, 0, 0);
-  context.restore();
+  context.lineWidth = Math.max(0.75, width / 3_200);
+  context.strokeStyle = "rgba(255,255,255,.48)";
+  context.shadowColor = "rgba(0,0,0,.32)";
+  context.shadowBlur = Math.max(1, width / 2_800);
+  context.beginPath();
+  for (let x = spacing; x < width; x += spacing) {
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+  }
+  for (let y = spacing; y < height; y += spacing) {
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+  }
+  context.stroke();
 
-  context.strokeStyle = "rgba(255,255,255,.95)";
-  context.lineWidth = 3;
+  const majorSpacing = spacing * 4;
+  context.shadowBlur = 0;
+  context.lineWidth = Math.max(1.25, width / 2_100);
+  context.strokeStyle = "rgba(71,115,255,.62)";
   context.beginPath();
-  context.moveTo(size / 2 - 13, size / 2);
-  context.lineTo(size / 2 + 13, size / 2);
-  context.moveTo(size / 2, size / 2 - 13);
-  context.lineTo(size / 2, size / 2 + 13);
+  for (let x = majorSpacing; x < width; x += majorSpacing) {
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+  }
+  for (let y = majorSpacing; y < height; y += majorSpacing) {
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+  }
   context.stroke();
-  context.strokeStyle = "#ff5a36";
-  context.lineWidth = 1.5;
-  context.beginPath();
-  context.arc(size / 2, size / 2, 5, 0, Math.PI * 2);
-  context.stroke();
+  context.restore();
 }
 
 function drawLineOverlay(
@@ -395,8 +409,7 @@ export default function Home() {
   const editorCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasViewportRef = useRef<HTMLDivElement>(null);
   const baseCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const startMagnifierRef = useRef<HTMLCanvasElement>(null);
-  const endMagnifierRef = useRef<HTMLCanvasElement>(null);
+  const processingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sourceImageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const lineIdRef = useRef(1);
@@ -443,7 +456,7 @@ export default function Home() {
       const objectUrl = URL.createObjectURL(file);
       const image = new Image();
       image.onload = () => {
-        const scale = getPreviewScale(image.naturalWidth, image.naturalHeight);
+        const scale = getEditorScale(image.naturalWidth, image.naturalHeight);
         const width = Math.max(1, Math.round(image.naturalWidth * scale));
         const height = Math.max(1, Math.round(image.naturalHeight * scale));
         sourceImageRef.current = image;
@@ -465,7 +478,7 @@ export default function Home() {
         clearPieces();
         setMessage(
           scale < 1
-            ? `预览已优化至 ${formatDimensions(width, height)}，导出仍使用原图像素`
+            ? `超大图编辑预览为 ${formatDimensions(width, height)}，导出仍使用原图像素`
             : null,
         );
         URL.revokeObjectURL(objectUrl);
@@ -482,9 +495,10 @@ export default function Home() {
   useEffect(() => {
     const sourceImage = sourceImageRef.current;
     if (!sourceImage || !imageDocument) return;
-    const scale = getPreviewScale(imageDocument.width, imageDocument.height);
-    const width = Math.max(1, Math.round(imageDocument.width * scale));
-    const height = Math.max(1, Math.round(imageDocument.height * scale));
+    const editorScale = getEditorScale(imageDocument.width, imageDocument.height);
+    const processingScale = getProcessingScale(imageDocument.width, imageDocument.height);
+    const width = Math.max(1, Math.round(imageDocument.width * editorScale));
+    const height = Math.max(1, Math.round(imageDocument.height * editorScale));
     const baseCanvas = document.createElement("canvas");
     baseCanvas.width = width;
     baseCanvas.height = height;
@@ -494,16 +508,20 @@ export default function Home() {
     context.imageSmoothingQuality = "high";
     const matrix = imageDocument.matrix;
     context.setTransform(
-      scale * matrix.a,
-      scale * matrix.b,
-      scale * matrix.c,
-      scale * matrix.d,
-      scale * matrix.e,
-      scale * matrix.f,
+      editorScale * matrix.a,
+      editorScale * matrix.b,
+      editorScale * matrix.c,
+      editorScale * matrix.d,
+      editorScale * matrix.e,
+      editorScale * matrix.f,
     );
     context.drawImage(sourceImage, 0, 0);
     context.resetTransform();
     baseCanvasRef.current = baseCanvas;
+    const processingCanvas = document.createElement("canvas");
+    processingCanvas.width = Math.max(1, Math.round(imageDocument.width * processingScale));
+    processingCanvas.height = Math.max(1, Math.round(imageDocument.height * processingScale));
+    processingCanvasRef.current = processingCanvas;
     setImageInfo({
       name: imageName,
       sourceWidth: sourceImage.naturalWidth,
@@ -512,7 +530,7 @@ export default function Home() {
       outputHeight: imageDocument.height,
       width,
       height,
-      scale,
+      scale: editorScale,
     });
   }, [imageDocument, imageName]);
 
@@ -625,19 +643,11 @@ export default function Home() {
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(baseCanvas, 0, 0);
+    if (referenceGridVisible) drawReferenceGrid(context);
     lines.forEach((line) => drawLineOverlay(context, line, false, line.id === selectedLineId));
     if (activeLine) drawLineOverlay(context, activeLine, true);
     if (cropSelection) drawCropOverlay(context, cropSelection);
-  }, [activeLine, cropSelection, imageInfo, lines, selectedLineId]);
-
-  useEffect(() => {
-    const baseCanvas = baseCanvasRef.current;
-    const startMagnifier = startMagnifierRef.current;
-    const endMagnifier = endMagnifierRef.current;
-    if (!baseCanvas || !activeLine || !startMagnifier || !endMagnifier) return;
-    drawMagnifierPreview(startMagnifier, baseCanvas, activeLine.start);
-    drawMagnifierPreview(endMagnifier, baseCanvas, activeLine.end);
-  }, [activeLine, imageInfo]);
+  }, [activeLine, cropSelection, imageInfo, lines, referenceGridVisible, selectedLineId]);
 
   useEffect(() => {
     const viewport = canvasViewportRef.current;
@@ -948,9 +958,9 @@ export default function Home() {
   };
 
   const splitImage = async () => {
-    const baseCanvas = baseCanvasRef.current;
+    const processingCanvas = processingCanvasRef.current;
     const sourceImage = sourceImageRef.current;
-    if (!baseCanvas || !sourceImage || !imageDocument || !imageInfo || !lines.length || isProcessing) return;
+    if (!processingCanvas || !sourceImage || !imageDocument || !imageInfo || !lines.length || isProcessing) return;
     setIsProcessing(true);
     setMessage(null);
     clearPieces();
@@ -958,10 +968,17 @@ export default function Home() {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
     try {
-      const { width, height } = imageInfo;
+      const { width, height } = processingCanvas;
+      const lineScaleX = (width - 1) / Math.max(1, imageInfo.width - 1);
+      const lineScaleY = (height - 1) / Math.max(1, imageInfo.height - 1);
+      const processingLines = lines.map((line) => ({
+        ...line,
+        start: { x: line.start.x * lineScaleX, y: line.start.y * lineScaleY },
+        end: { x: line.end.x * lineScaleX, y: line.end.y * lineScaleY },
+      }));
       const total = width * height;
       const barrier = new Uint8Array(total);
-      lines.forEach((line) => rasterizeLine(barrier, width, height, line));
+      processingLines.forEach((line) => rasterizeLine(barrier, width, height, line));
 
       const labels = new Int32Array(total);
       labels.fill(-1);
@@ -1063,6 +1080,8 @@ export default function Home() {
 
       const sorted = [...components].sort((a, b) => a.minY - b.minY || a.minX - b.minX);
       const created: Piece[] = [];
+      const processingScaleX = width / imageDocument.width;
+      const processingScaleY = height / imageDocument.height;
 
       for (let pieceIndex = 0; pieceIndex < sorted.length; pieceIndex += 1) {
         const component = sorted[pieceIndex];
@@ -1070,10 +1089,10 @@ export default function Home() {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         const previewPieceWidth = component.maxX - component.minX + 1;
         const previewPieceHeight = component.maxY - component.minY + 1;
-        const fullLeft = Math.floor(component.minX / imageInfo.scale);
-        const fullTop = Math.floor(component.minY / imageInfo.scale);
-        const fullRight = Math.min(imageDocument.width, Math.ceil((component.maxX + 1) / imageInfo.scale));
-        const fullBottom = Math.min(imageDocument.height, Math.ceil((component.maxY + 1) / imageInfo.scale));
+        const fullLeft = Math.floor(component.minX / processingScaleX);
+        const fullTop = Math.floor(component.minY / processingScaleY);
+        const fullRight = Math.min(imageDocument.width, Math.ceil((component.maxX + 1) / processingScaleX));
+        const fullBottom = Math.min(imageDocument.height, Math.ceil((component.maxY + 1) / processingScaleY));
         const pieceWidth = Math.max(1, Math.round((fullRight - fullLeft) * exportScale));
         const pieceHeight = Math.max(1, Math.round((fullBottom - fullTop) * exportScale));
         if (pieceWidth > 16_384 || pieceHeight > 16_384 || pieceWidth * pieceHeight > 40_000_000) {
@@ -1423,7 +1442,7 @@ export default function Home() {
                   className={`canvas-grid-toggle ${referenceGridVisible ? "active" : ""}`}
                   aria-pressed={referenceGridVisible}
                   onClick={() => setReferenceGridVisible((current) => !current)}
-                  title="在图片之外的画布背景显示参考网格"
+                  title="在图片上方显示细参考网格"
                 ><i aria-hidden="true" />网格</button>
                 <button type="button" className="replace-button" onClick={() => fileInputRef.current?.click()}>
                   更换图片
@@ -1433,7 +1452,7 @@ export default function Home() {
           </div>
 
           <div
-            className={`canvas-stage ${isDragging ? "dragging" : ""} ${imageInfo ? "has-image" : ""} ${referenceGridVisible ? "show-grid" : ""}`}
+            className={`canvas-stage ${isDragging ? "dragging" : ""} ${imageInfo ? "has-image" : ""}`}
             onDragOver={(event) => {
               event.preventDefault();
               setIsDragging(true);
@@ -1465,22 +1484,10 @@ export default function Home() {
                   </div>
                 </div>
                 {activeLine && (
-                  <>
-                    <div className="line-magnifiers" aria-label="分割线起点与落点放大预览">
-                      <figure>
-                        <canvas ref={startMagnifierRef} />
-                        <figcaption><b>起点</b><span>{Math.round((activeLine.start.x / imageInfo.width) * 100)}%, {Math.round((activeLine.start.y / imageInfo.height) * 100)}%</span></figcaption>
-                      </figure>
-                      <figure>
-                        <canvas ref={endMagnifierRef} />
-                        <figcaption><b>落点</b><span>{Math.round((activeLine.end.x / imageInfo.width) * 100)}%, {Math.round((activeLine.end.y / imageInfo.height) * 100)}%</span></figcaption>
-                      </figure>
-                    </div>
-                    <div className={`angle-readout ${isForceStraight || activeAngleIsStandard ? "locked" : ""}`}>
-                      <b>{activeAngle}°</b>
-                      <span>{isForceStraight ? "SHIFT 已锁定" : activeAngleIsStandard ? "已校正为标准角度" : "接近标准角度会自动校正"}</span>
-                    </div>
-                  </>
+                  <div className={`angle-readout ${isForceStraight || activeAngleIsStandard ? "locked" : ""}`}>
+                    <b>{activeAngle}°</b>
+                    <span>{isForceStraight ? "SHIFT 已锁定" : activeAngleIsStandard ? "已校正为标准角度" : "接近标准角度会自动校正"}</span>
+                  </div>
                 )}
               </>
             ) : (

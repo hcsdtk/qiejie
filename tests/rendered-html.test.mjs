@@ -36,7 +36,8 @@ test("ships the completed product surface", async () => {
   ]);
 
   assert.match(page, /from "fflate"/);
-  assert.match(page, /MAX_PIXELS/);
+  assert.match(page, /MAX_PROCESS_PIXELS/);
+  assert.match(page, /MAX_EDITOR_PIXELS/);
   assert.match(page, /splitImage/);
   assert.match(page, /saveAllFiles/);
   assert.match(page, /downloadZip/);
@@ -50,14 +51,16 @@ test("ships the completed product surface", async () => {
   assert.match(page, /undoEditor/);
   assert.match(page, /forceAngle: event\.shiftKey/);
   assert.match(page, /SHIFT 已锁定/);
-  assert.match(page, /drawMagnifierPreview/);
-  assert.match(page, /startMagnifierRef/);
+  assert.match(page, /drawReferenceGrid/);
+  assert.match(page, /processingCanvasRef/);
+  assert.match(page, /getEditorScale/);
+  assert.match(page, /getProcessingScale/);
   assert.match(page, /referenceGridVisible/);
   assert.match(page, /widthViewScale/);
   assert.match(page, /heightViewScale/);
   assert.match(page, /使图片宽度铺满画布/);
   assert.match(page, /使图片高度铺满画布/);
-  assert.doesNotMatch(page, /drawReferenceGrid/);
+  assert.doesNotMatch(page, /drawMagnifierPreview|line-magnifiers/);
   assert.doesNotMatch(page, /setSnapEnabled|setAngleAssistEnabled/);
   assert.match(page, /image\/webp/);
   assert.match(page, /导出仍使用原图像素/);
