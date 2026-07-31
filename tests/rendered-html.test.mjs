@@ -48,6 +48,12 @@ test("ships the completed product surface", async () => {
   assert.match(page, /applyGrid/);
   assert.match(page, /rotateImageClockwise/);
   assert.match(page, /undoEditor/);
+  assert.match(page, /snapEnabled/);
+  assert.match(page, /angleAssistEnabled/);
+  assert.match(page, /referenceGridVisible/);
+  assert.match(page, /forceAngle: event\.shiftKey/);
+  assert.match(page, /SHIFT 已锁定/);
+  assert.match(page, /drawReferenceGrid/);
   assert.match(page, /image\/webp/);
   assert.match(page, /导出仍使用原图像素/);
   assert.match(page, /tool-panel-scroll/);

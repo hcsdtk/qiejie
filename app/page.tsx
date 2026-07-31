@@ -45,6 +45,11 @@ type EditorSnapshot = {
 };
 type ToolMode = "line" | "crop";
 type ExportFormat = "image/png" | "image/jpeg" | "image/webp";
+type LineAssistOptions = {
+  snapEnabled: boolean;
+  angleAssistEnabled: boolean;
+  forceAngle: boolean;
+};
 type CanvasGesture =
   | { type: "draw-line" }
   | { type: "move-endpoint"; before: EditorSnapshot; lineId: number; endpoint: "start" | "end" }
@@ -153,7 +158,78 @@ function snapPoint(point: Point, width: number, height: number, lines: CutLine[]
   return nearest;
 }
 
-function assistLineEnd(start: Point, point: Point, width: number, height: number, lines: CutLine[]) {
+function clampPoint(point: Point, width: number, height: number): Point {
+  return {
+    x: Math.max(0, Math.min(width - 1, point.x)),
+    y: Math.max(0, Math.min(height - 1, point.y)),
+  };
+}
+
+function snapStraightPoint(
+  start: Point,
+  straightened: Point,
+  pointer: Point,
+  width: number,
+  height: number,
+  lines: CutLine[],
+  snapEnabled: boolean,
+) {
+  const dx = straightened.x - start.x;
+  const dy = straightened.y - start.y;
+  const candidates: Point[] = [];
+  const addRayCandidate = (t: number) => {
+    if (!Number.isFinite(t) || t < 0) return;
+    const candidate = { x: start.x + dx * t, y: start.y + dy * t };
+    if (candidate.x >= -0.01 && candidate.x <= width - 0.99 && candidate.y >= -0.01 && candidate.y <= height - 0.99) {
+      candidates.push(clampPoint(candidate, width, height));
+    }
+  };
+
+  if (Math.abs(dx) > 0.0001) {
+    addRayCandidate((0 - start.x) / dx);
+    addRayCandidate((width - 1 - start.x) / dx);
+  }
+  if (Math.abs(dy) > 0.0001) {
+    addRayCandidate((0 - start.y) / dy);
+    addRayCandidate((height - 1 - start.y) / dy);
+  }
+
+  for (const line of lines) {
+    const sx = line.end.x - line.start.x;
+    const sy = line.end.y - line.start.y;
+    const denominator = dx * sy - dy * sx;
+    if (Math.abs(denominator) < 0.0001) continue;
+    const qx = line.start.x - start.x;
+    const qy = line.start.y - start.y;
+    const t = (qx * sy - qy * sx) / denominator;
+    const u = (qx * dy - qy * dx) / denominator;
+    if (t >= 0 && u >= 0 && u <= 1) addRayCandidate(t);
+  }
+
+  if (snapEnabled) {
+    const threshold = Math.max(10, Math.min(width, height) * 0.035);
+    const nearest = candidates
+      .map((candidate) => ({ candidate, distance: Math.hypot(candidate.x - pointer.x, candidate.y - pointer.y) }))
+      .sort((a, b) => a.distance - b.distance)[0];
+    if (nearest && nearest.distance < threshold) return nearest.candidate;
+  }
+
+  const inside = clampPoint(straightened, width, height);
+  if (inside.x === straightened.x && inside.y === straightened.y) return inside;
+  const boundary = candidates
+    .filter((candidate) => Math.hypot(candidate.x - start.x, candidate.y - start.y) > 0.5)
+    .sort((a, b) => Math.hypot(a.x - straightened.x, a.y - straightened.y) - Math.hypot(b.x - straightened.x, b.y - straightened.y))[0];
+  return boundary ?? inside;
+}
+
+function assistLineEnd(
+  start: Point,
+  point: Point,
+  width: number,
+  height: number,
+  lines: CutLine[],
+  options: LineAssistOptions,
+) {
   const dx = point.x - start.x;
   const dy = point.y - start.y;
   const distance = Math.hypot(dx, dy);
@@ -163,15 +239,53 @@ function assistLineEnd(start: Point, point: Point, width: number, height: number
   const step = Math.PI / 4;
   const assistedAngle = Math.round(angle / step) * step;
   const delta = Math.abs(Math.atan2(Math.sin(angle - assistedAngle), Math.cos(angle - assistedAngle)));
+  const angleLocked = options.forceAngle || (options.angleAssistEnabled && delta <= (9 * Math.PI) / 180);
   const straightened =
-    delta <= (9 * Math.PI) / 180
+    angleLocked
       ? {
           x: start.x + Math.cos(assistedAngle) * distance,
           y: start.y + Math.sin(assistedAngle) * distance,
         }
       : point;
 
-  return snapPoint(straightened, width, height, lines);
+  if (angleLocked) {
+    return snapStraightPoint(start, straightened, point, width, height, lines, options.snapEnabled);
+  }
+  const clamped = clampPoint(straightened, width, height);
+  return options.snapEnabled ? snapPoint(clamped, width, height, lines) : clamped;
+}
+
+function drawReferenceGrid(context: CanvasRenderingContext2D) {
+  const { width, height } = context.canvas;
+  const shortEdge = Math.min(width, height);
+  const spacing = Math.max(36, shortEdge / 8);
+  const centerX = width / 2;
+  const centerY = height / 2;
+
+  context.save();
+  context.lineWidth = Math.max(1, width / 1_800);
+  context.strokeStyle = "rgba(255,255,255,.52)";
+  context.setLineDash([5, 7]);
+  context.beginPath();
+  for (let x = centerX % spacing; x < width; x += spacing) {
+    context.moveTo(x, 0);
+    context.lineTo(x, height);
+  }
+  for (let y = centerY % spacing; y < height; y += spacing) {
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+  }
+  context.stroke();
+  context.setLineDash([]);
+  context.lineWidth = Math.max(1.5, width / 1_200);
+  context.strokeStyle = "rgba(71,115,255,.72)";
+  context.beginPath();
+  context.moveTo(centerX, 0);
+  context.lineTo(centerX, height);
+  context.moveTo(0, centerY);
+  context.lineTo(width, centerY);
+  context.stroke();
+  context.restore();
 }
 
 function drawLineOverlay(
@@ -299,6 +413,10 @@ export default function Home() {
   const [activeLine, setActiveLine] = useState<Omit<CutLine, "id"> | null>(null);
   const [selectedLineId, setSelectedLineId] = useState<number | null>(null);
   const [toolMode, setToolMode] = useState<ToolMode>("line");
+  const [snapEnabled, setSnapEnabled] = useState(true);
+  const [angleAssistEnabled, setAngleAssistEnabled] = useState(true);
+  const [referenceGridVisible, setReferenceGridVisible] = useState(false);
+  const [isForceStraight, setIsForceStraight] = useState(false);
   const [cropSelection, setCropSelection] = useState<CropSelection | null>(null);
   const [undoStack, setUndoStack] = useState<EditorSnapshot[]>([]);
   const [redoStack, setRedoStack] = useState<EditorSnapshot[]>([]);
@@ -494,6 +612,11 @@ export default function Home() {
       } else if (!isFormField && key === "c") {
         setToolMode("crop");
         setSelectedLineId(null);
+      } else if (!isFormField && key === "g") {
+        setReferenceGridVisible((current) => {
+          setMessage(current ? "参考网格已关闭" : "参考网格已开启；不会出现在导出图片中");
+          return !current;
+        });
       }
     };
     window.addEventListener("paste", handlePaste);
@@ -514,10 +637,11 @@ export default function Home() {
     if (!context) return;
     context.clearRect(0, 0, canvas.width, canvas.height);
     context.drawImage(baseCanvas, 0, 0);
+    if (referenceGridVisible) drawReferenceGrid(context);
     lines.forEach((line) => drawLineOverlay(context, line, false, line.id === selectedLineId));
     if (activeLine) drawLineOverlay(context, activeLine, true);
     if (cropSelection) drawCropOverlay(context, cropSelection);
-  }, [activeLine, cropSelection, imageInfo, lines, selectedLineId]);
+  }, [activeLine, cropSelection, imageInfo, lines, referenceGridVisible, selectedLineId]);
 
   useEffect(() => {
     const viewport = canvasViewportRef.current;
@@ -623,9 +747,12 @@ export default function Home() {
       return;
     }
 
-    const point = snapPoint(rawPoint, imageInfo.width, imageInfo.height, lines);
+    const point = snapEnabled
+      ? snapPoint(rawPoint, imageInfo.width, imageInfo.height, lines)
+      : rawPoint;
     gestureRef.current = { type: "draw-line" };
     setSelectedLineId(null);
+    setIsForceStraight(event.shiftKey);
     setActiveLine({ start: point, end: point });
     setMessage(null);
   };
@@ -643,7 +770,15 @@ export default function Home() {
 
     if (gesture.type === "move-endpoint") {
       const otherLines = lines.filter((line) => line.id !== gesture.lineId);
-      const point = snapPoint(rawPoint, imageInfo.width, imageInfo.height, otherLines);
+      const movingLine = lines.find((line) => line.id === gesture.lineId);
+      if (!movingLine) return;
+      const fixedPoint = gesture.endpoint === "start" ? movingLine.end : movingLine.start;
+      const point = assistLineEnd(fixedPoint, rawPoint, imageInfo.width, imageInfo.height, otherLines, {
+        snapEnabled,
+        angleAssistEnabled,
+        forceAngle: event.shiftKey,
+      });
+      setIsForceStraight(event.shiftKey);
       setLines((current) => current.map((line) => (
         line.id === gesture.lineId ? { ...line, [gesture.endpoint]: point } : line
       )));
@@ -652,7 +787,12 @@ export default function Home() {
     }
 
     if (!activeLine) return;
-    const point = assistLineEnd(activeLine.start, rawPoint, imageInfo.width, imageInfo.height, lines);
+    const point = assistLineEnd(activeLine.start, rawPoint, imageInfo.width, imageInfo.height, lines, {
+      snapEnabled,
+      angleAssistEnabled,
+      forceAngle: event.shiftKey,
+    });
+    setIsForceStraight(event.shiftKey);
     setActiveLine((current) => (current ? { ...current, end: point } : null));
   };
 
@@ -668,7 +808,11 @@ export default function Home() {
       setMessage("分割线已更新");
     } else if (gesture.type === "draw-line" && activeLine) {
       const rawPoint = getCanvasPoint(event.currentTarget, event.clientX, event.clientY);
-      const end = assistLineEnd(activeLine.start, rawPoint, imageInfo.width, imageInfo.height, lines);
+      const end = assistLineEnd(activeLine.start, rawPoint, imageInfo.width, imageInfo.height, lines, {
+        snapEnabled,
+        angleAssistEnabled,
+        forceAngle: event.shiftKey,
+      });
       if (Math.hypot(end.x - activeLine.start.x, end.y - activeLine.start.y) > 12) {
         pushUndoSnapshot(currentSnapshot());
         const line: CutLine = { id: lineIdRef.current++, start: activeLine.start, end };
@@ -678,6 +822,7 @@ export default function Home() {
       }
       setActiveLine(null);
     }
+    setIsForceStraight(false);
     gestureRef.current = null;
   };
 
@@ -686,6 +831,7 @@ export default function Home() {
     if (gesture?.type === "move-endpoint") restoreSnapshot(gesture.before);
     if (gesture?.type === "draw-line") setActiveLine(null);
     if (gesture?.type === "crop") setCropSelection(null);
+    setIsForceStraight(false);
     gestureRef.current = null;
   };
 
@@ -1080,14 +1226,15 @@ export default function Home() {
     }
   };
 
-  const activeAngle = activeLine
-    ? Math.round(
-        ((Math.atan2(activeLine.end.y - activeLine.start.y, activeLine.end.x - activeLine.start.x) * 180) /
-          Math.PI +
-          360) %
-          180,
-      )
+  const activeAngleValue = activeLine
+    ? ((Math.atan2(activeLine.end.y - activeLine.start.y, activeLine.end.x - activeLine.start.x) * 180) /
+        Math.PI +
+        360) %
+      180
     : null;
+  const activeAngle = activeAngleValue === null ? null : Math.round(activeAngleValue);
+  const activeAngleIsStandard = activeAngleValue !== null
+    && Math.abs(activeAngleValue - Math.round(activeAngleValue / 45) * 45) < 0.05;
 
   return (
     <main className="app-shell">
@@ -1154,19 +1301,43 @@ export default function Home() {
           </button>
 
           {toolMode === "line" ? (
-            <>
-              <div className="snap-row">
+            <div className="assist-tools">
+              <div className="subsection-label"><span>辅助工具</span><small>可随时开关</small></div>
+              <button
+                type="button"
+                className={`assist-option ${snapEnabled ? "enabled" : ""}`}
+                aria-pressed={snapEnabled}
+                onClick={() => setSnapEnabled((current) => !current)}
+              >
                 <span className="snap-icon" aria-hidden="true">⌁</span>
-                <span><strong>智能吸附</strong><small>自动贴合边缘与交点</small></span>
-                <span className="toggle on" aria-label="智能吸附已开启"><i /></span>
-              </div>
+                <span><strong>智能吸附</strong><small>端点贴合边缘与已有线条</small></span>
+                <span className={`toggle ${snapEnabled ? "on" : ""}`} aria-hidden="true"><i /></span>
+              </button>
 
-              <div className="angle-assist-row">
+              <button
+                type="button"
+                className={`assist-option ${angleAssistEnabled ? "enabled" : ""}`}
+                aria-pressed={angleAssistEnabled}
+                onClick={() => setAngleAssistEnabled((current) => !current)}
+              >
                 <span className="angle-icon" aria-hidden="true">∟</span>
-                <span><strong>辅助画直</strong><small>自动校正水平、45° 与垂直</small></span>
-                <b>0° · 45° · 90°</b>
-              </div>
-            </>
+                <span><strong>角度校正</strong><small>靠近 0°、45°、90° 时自动校正</small></span>
+                <span className="assist-tail"><kbd>Shift</kbd><span className={`toggle ${angleAssistEnabled ? "on" : ""}`} aria-hidden="true"><i /></span></span>
+              </button>
+
+              <button
+                type="button"
+                className={`assist-option ${referenceGridVisible ? "enabled" : ""}`}
+                aria-pressed={referenceGridVisible}
+                onClick={() => setReferenceGridVisible((current) => !current)}
+              >
+                <span className="reference-grid-icon" aria-hidden="true">#</span>
+                <span><strong>参考网格</strong><small>只在画布显示，不会导出</small></span>
+                <span className="assist-tail"><kbd>G</kbd><span className={`toggle ${referenceGridVisible ? "on" : ""}`} aria-hidden="true"><i /></span></span>
+              </button>
+
+              <p className="shift-hint"><kbd>Shift</kbd><span>画线时按住，强制锁定 0° / 45° / 90°</span></p>
+            </div>
           ) : (
             <div className="crop-actions">
               <button type="button" onClick={applyCrop} disabled={!cropSelection}>应用裁剪</button>
@@ -1310,7 +1481,12 @@ export default function Home() {
                     />
                   </div>
                 </div>
-                {activeLine && <div className="angle-readout"><b>{activeAngle}°</b><span>直线辅助</span></div>}
+                {activeLine && (
+                  <div className={`angle-readout ${isForceStraight || activeAngleIsStandard ? "locked" : ""}`}>
+                    <b>{activeAngle}°</b>
+                    <span>{isForceStraight ? "SHIFT 已锁定" : activeAngleIsStandard ? "已校正为标准角度" : angleAssistEnabled ? "接近标准角度会自动校正" : "自由角度 · 按 Shift 锁定"}</span>
+                  </div>
+                )}
               </>
             ) : (
               <div className="upload-state">
@@ -1342,7 +1518,7 @@ export default function Home() {
           <div className="stage-footer">
             <div className={`status-message ${message?.startsWith("完成") ? "success" : ""}`}>
               <span aria-hidden="true">{message?.startsWith("完成") ? "✓" : "i"}</span>
-              {message ?? (imageInfo ? "分割线需贯穿边缘；Ctrl/⌘ + 滚轮可缩放视图" : "所有处理均在浏览器中完成")}
+              {message ?? (imageInfo ? "按住 Shift 强制画直；G 显示参考网格；Ctrl/⌘ + 滚轮缩放" : "所有处理均在浏览器中完成")}
             </div>
             <button
               className="split-button"
