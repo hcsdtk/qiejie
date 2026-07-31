@@ -50,6 +50,8 @@ test("ships the completed product surface", async () => {
   assert.match(page, /undoEditor/);
   assert.match(page, /image\/webp/);
   assert.match(page, /导出仍使用原图像素/);
+  assert.match(page, /tool-panel-scroll/);
+  assert.match(page, /tool-panel-footer/);
   assert.match(styles, /grid-template-rows: minmax\(0, 1fr\)/);
   assert.match(styles, /overflow-y: scroll/);
   assert.match(styles, /scrollbar-gutter: stable/);

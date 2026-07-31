@@ -99,6 +99,13 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
   padding: 18px 15px;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+}
+.tool-panel > .panel-heading { flex: 0 0 auto; }
+.tool-panel-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-right: 7px;
   overflow-x: hidden;
   overflow-y: scroll;
   overscroll-behavior: contain;
@@ -106,10 +113,11 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
   scrollbar-color: #aaa69d #f0eee8;
   scrollbar-width: auto;
 }
-.tool-panel::-webkit-scrollbar { width: 10px; }
-.tool-panel::-webkit-scrollbar-track { background: #f0eee8; border-left: 1px solid var(--soft-line); }
-.tool-panel::-webkit-scrollbar-thumb { background: #aaa69d; border: 2px solid #f0eee8; border-radius: 10px; }
-.tool-panel::-webkit-scrollbar-thumb:hover { background: #77746c; }
+.tool-panel-scroll::-webkit-scrollbar { width: 10px; }
+.tool-panel-scroll::-webkit-scrollbar-track { background: #f0eee8; border-left: 1px solid var(--soft-line); }
+.tool-panel-scroll::-webkit-scrollbar-thumb { background: #aaa69d; border: 2px solid #f0eee8; border-radius: 10px; }
+.tool-panel-scroll::-webkit-scrollbar-thumb:hover { background: #77746c; }
+.tool-panel-footer { flex: 0 0 auto; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--soft-line); background: var(--white); }
 .stage-panel { grid-area: stage; display: flex; flex-direction: column; min-height: 0; }
 .result-panel { grid-area: results; padding: 18px 15px 15px; display: flex; flex-direction: column; min-height: 0; }
 
@@ -167,13 +175,13 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .history-actions { grid-template-columns: 1fr 1fr; }
 .history-actions button:nth-child(n+3) { min-height: 29px; font-size: 9px; }
 
-.file-card { margin-top: 18px; border: 1px solid var(--soft-line); padding: 8px; display: grid; grid-template-columns: 38px 1fr 24px; gap: 8px; align-items: center; overflow: hidden; }
+.file-card { margin-top: 0; border: 1px solid var(--soft-line); padding: 8px; display: grid; grid-template-columns: 38px 1fr 24px; gap: 8px; align-items: center; overflow: hidden; }
 .file-thumb { width: 38px; height: 38px; background: #eeece6; display: grid; place-items: center; font: 8px var(--font-mono), monospace; color: #89867f; }
 .file-card > div:nth-child(2) { min-width: 0; }
 .file-card strong { display: block; font-size: 10px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 4px; }
 .file-card small { display: block; color: #96938b; font-size: 8px; }
 .file-card button { border: 0; background: transparent; color: #8e8b83; font-size: 16px; padding: 2px; }
-.mini-help { margin-top: 20px; background: #f5f4ef; padding: 14px 12px; display: flex; gap: 8px; color: #77746c; }
+.mini-help { margin-top: 0; background: #f5f4ef; padding: 14px 12px; display: flex; gap: 8px; color: #77746c; }
 .mini-help span { color: var(--accent); transform: rotate(45deg); }
 .mini-help p { margin: 0; font-size: 10px; line-height: 1.6; }
 .shortcut-note { margin-top: 10px; padding-top: 10px; color: #aaa69d; font-size: 9px; display: flex; align-items: center; gap: 3px; }
@@ -289,7 +297,9 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
   .app-shell { padding: 0 12px 18px; }
   .workbench { height: auto; min-height: 0; grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: "stage" "tools" "results"; overflow: visible; }
   .stage-panel { min-height: 680px; }
-  .tool-panel { height: auto; max-height: none; min-height: 260px; overflow: visible; scrollbar-gutter: auto; }
+  .tool-panel { height: auto; max-height: none; min-height: 260px; overflow: visible; }
+  .tool-panel-scroll { flex: 0 0 auto; min-height: auto; padding-right: 0; overflow: visible; scrollbar-gutter: auto; }
+  .tool-panel-footer { margin-top: 18px; }
   .result-panel { min-height: 260px; }
   .shortcut-note { margin-top: 24px; }
   .piece-list { max-height: 360px; }

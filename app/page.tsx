@@ -1124,19 +1124,20 @@ export default function Home() {
             {lines.length > 0 && <b>{lines.length} 条</b>}
           </div>
 
-          <button
-            className={`tool-card ${toolMode === "line" ? "selected" : ""}`}
-            type="button"
-            disabled={!imageInfo}
-            onClick={() => {
-              setToolMode("line");
-              setCropSelection(null);
-            }}
-          >
-            <span className="line-tool-icon" aria-hidden="true" />
-            <span><strong>直线分割</strong><small>画线、选中并调整端点</small></span>
-            <kbd>V</kbd>
-          </button>
+          <div className="tool-panel-scroll">
+            <button
+              className={`tool-card ${toolMode === "line" ? "selected" : ""}`}
+              type="button"
+              disabled={!imageInfo}
+              onClick={() => {
+                setToolMode("line");
+                setCropSelection(null);
+              }}
+            >
+              <span className="line-tool-icon" aria-hidden="true" />
+              <span><strong>直线分割</strong><small>画线、选中并调整端点</small></span>
+              <kbd>V</kbd>
+            </button>
 
           <button
             className={`tool-card crop-tool ${toolMode === "crop" ? "selected" : ""}`}
@@ -1197,39 +1198,42 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="tool-actions history-actions">
-            <button type="button" onClick={undoEditor} disabled={!undoStack.length || isProcessing}>
-              <span aria-hidden="true">↶</span> 撤销
-            </button>
-            <button type="button" onClick={redoEditor} disabled={!redoStack.length || isProcessing}>
-              <span aria-hidden="true">↷</span> 重做
-            </button>
-            <button type="button" onClick={deleteSelectedLine} disabled={selectedLineId === null || isProcessing}>
-              删除所选
-            </button>
-            <button
-              type="button"
-              onClick={clearAllLines}
-              disabled={!lines.length || isProcessing}
-            >
-              清空线条
-            </button>
+            <div className="tool-actions history-actions">
+              <button type="button" onClick={undoEditor} disabled={!undoStack.length || isProcessing}>
+                <span aria-hidden="true">↶</span> 撤销
+              </button>
+              <button type="button" onClick={redoEditor} disabled={!redoStack.length || isProcessing}>
+                <span aria-hidden="true">↷</span> 重做
+              </button>
+              <button type="button" onClick={deleteSelectedLine} disabled={selectedLineId === null || isProcessing}>
+                删除所选
+              </button>
+              <button
+                type="button"
+                onClick={clearAllLines}
+                disabled={!lines.length || isProcessing}
+              >
+                清空线条
+              </button>
+            </div>
           </div>
 
-          {imageInfo ? (
-            <div className="file-card">
-              <div className="file-thumb" aria-hidden="true">IMG</div>
-              <div><strong>{imageInfo.name}</strong><small>{formatDimensions(imageInfo.outputWidth, imageInfo.outputHeight)}</small></div>
-              <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="更换图片">↗</button>
-            </div>
-          ) : (
-            <div className="mini-help">
-              <span aria-hidden="true">↗</span>
-              <p>先上传一张图片，再从画布一侧拖到另一侧。</p>
-            </div>
-          )}
+          <div className="tool-panel-footer">
+            {imageInfo ? (
+              <div className="file-card">
+                <div className="file-thumb" aria-hidden="true">IMG</div>
+                <div><strong>{imageInfo.name}</strong><small>{formatDimensions(imageInfo.outputWidth, imageInfo.outputHeight)}</small></div>
+                <button type="button" onClick={() => fileInputRef.current?.click()} aria-label="更换图片">↗</button>
+              </div>
+            ) : (
+              <div className="mini-help">
+                <span aria-hidden="true">↗</span>
+                <p>先上传一张图片，再从画布一侧拖到另一侧。</p>
+              </div>
+            )}
 
-          <div className="shortcut-note"><kbd>⌘</kbd><kbd>Z</kbd><span>撤销 · Shift + Z 重做</span></div>
+            <div className="shortcut-note"><kbd>⌘</kbd><kbd>Z</kbd><span>撤销 · Shift + Z 重做</span></div>
+          </div>
         </aside>
 
         <section className="stage-panel panel">
