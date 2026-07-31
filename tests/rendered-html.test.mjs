@@ -43,6 +43,12 @@ test("ships the completed product surface", async () => {
   assert.match(page, /fitViewScale/);
   assert.match(page, /canvas-viewport/);
   assert.match(page, /Ctrl\/⌘ \+ 滚轮/);
+  assert.match(page, /applyCrop/);
+  assert.match(page, /applyGrid/);
+  assert.match(page, /rotateImageClockwise/);
+  assert.match(page, /undoEditor/);
+  assert.match(page, /image\/webp/);
+  assert.match(page, /导出仍使用原图像素/);
   assert.match(layout, /切界 — 画线分割图片/);
   assert.match(layout, /og\.png/);
   assert.match(packageJson, /"fflate"/);
