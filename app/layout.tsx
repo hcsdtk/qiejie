@@ -20,23 +20,23 @@ export async function generateMetadata(): Promise<Metadata> {
   const origin = `${protocol}://${host}`;
 
   return {
-    title: "切界 — 画线分割图片",
-    description: "上传图片，画几条线，即刻得到独立 PNG 切片。所有处理都在本机浏览器完成。",
+    title: "Qiejie — Browser Image Slicer",
+    description: "Draw split lines, generate grids, and export image slices locally in your browser.",
     icons: {
       icon: "/favicon.png",
       shortcut: "/favicon.png",
     },
     openGraph: {
-      title: "切界 — 画线分割图片",
-      description: "画线，分割图片。所有处理都在本机完成。",
+      title: "Qiejie — Browser Image Slicer",
+      description: "Draw lines, split images, and export locally. Your image stays in the browser.",
       type: "website",
       url: origin,
-      images: [{ url: `${origin}/og.png`, width: 1731, height: 909, alt: "切界画线分割图片工具" }],
+      images: [{ url: `${origin}/og.png`, width: 1731, height: 909, alt: "Qiejie browser image slicer" }],
     },
     twitter: {
       card: "summary_large_image",
-      title: "切界 — 画线分割图片",
-      description: "画线，分割图片。所有处理都在本机完成。",
+      title: "Qiejie — Browser Image Slicer",
+      description: "Draw lines, split images, and export locally. Your image stays in the browser.",
       images: [`${origin}/og.png`],
     },
   };

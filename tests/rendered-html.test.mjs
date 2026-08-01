@@ -69,8 +69,9 @@ test("ships the completed product surface", async () => {
   assert.match(styles, /grid-template-rows: minmax\(0, 1fr\)/);
   assert.match(styles, /overflow-y: scroll/);
   assert.match(styles, /scrollbar-gutter: stable/);
-  assert.match(layout, /切界 — 画线分割图片/);
+  assert.match(layout, /Qiejie — Browser Image Slicer/);
   assert.match(layout, /og\.png/);
   assert.match(packageJson, /"fflate"/);
+  assert.match(packageJson, /"name": "qiejie"/);
   assert.doesNotMatch(page, /_sites-preview|SkeletonPreview/);
 });
