@@ -1,54 +1,51 @@
 # Qiejie · 切界
 
-纯浏览器图片分割工具：上传一张图片，在画布上画线或选择网格，即可得到独立的 PNG/JPG/WebP 切片。图片始终在本机浏览器内处理，不上传服务器。
+![Qiejie cover](docs/assets/qiejie-cover.png)
 
-[在线使用](https://qiejie-line-slice.chasenh.chatgpt.site/) · [GitHub 仓库](https://github.com/hcsdtk/qiejie) · [问题反馈](https://github.com/hcsdtk/qiejie/issues)
+> 画线，切图。一个不上传原图的纯浏览器图片分割工具。
 
-![Qiejie editor](docs/screenshots/editor.png)
+[在线使用](https://qiejie-line-slice.chasenh.chatgpt.site/) · [GitHub](https://github.com/hcsdtk/qiejie) · [反馈问题](https://github.com/hcsdtk/qiejie/issues)
+
+## 这是什么
+
+Qiejie（切界）把图片分割变成一个简单的浏览器工作流：打开图片，在画布上画出边界，预览切片，然后导出 PNG、JPG、WebP 或 ZIP。所有图像处理都在当前设备完成，原图不会上传到服务器。
+
+它适合处理长截图、漫画、海报、设计稿、社交媒体拼图和临时素材拆分。既可以自由画线，也可以用规则网格快速生成切片。
 
 ## 为什么做
 
-很多图片分割工具要上传原图、操作路径复杂，或者只支持固定的九宫格。Qiejie 的目标是把“打开图片 → 画几条线 → 导出结果”变成一个轻量、可解释、隐私友好的浏览器流程：分割规则由用户决定，原图不离开设备，结果可以直接继续使用。
+常见的图片切割工具要上传原图、只能使用固定网格，或者需要安装桌面软件。Qiejie 希望提供一个更快、更透明的选择：
 
-## 项目背景与作用
+- 用户决定边界，而不是被固定模板限制
+- 图片留在本机，适合不希望上传素材的场景
+- 打开即用，不安装软件，也不需要注册账号
+- 导出结果清晰可控，方便继续设计、发布或批量处理
 
-Qiejie 面向设计、前端、内容制作和日常图片整理场景，适合：
+## 功能一览
 
-- 将长图、漫画、海报、截图按内容边界切成独立图片
-- 将一张设计稿快速拆成多个素材，便于上传或批量处理
-- 用等分网格生成社交媒体切图、拼图和多列素材
-- 在不安装桌面软件、不上传原图的情况下完成临时切图
+- 拖拽、文件选择、剪贴板粘贴图片
+- 直线分割，默认启用端点吸附和角度校正
+- 按住 `Shift` 锁定水平、垂直或 45° 直线
+- 可选的细密参考网格（仅用于编辑，不会导出）
+- 选中、拖动、删除分割线，支持撤销与重做
+- 裁剪、顺时针旋转、水平翻转、垂直翻转
+- 2×2、3×3、三栏和最多 12×12 自定义等分网格
+- 适应、宽度铺满、高度铺满和 5%–400% 手动缩放
+- 高清编辑预览，按原图像素生成切片
+- PNG、JPG、WebP 导出，支持尺寸倍率和质量设置
+- 单张下载、保存到文件夹、本地 ZIP 打包下载
 
-## 功能
+## 使用方法
 
-- 拖拽、文件选择和剪贴板粘贴上传
-- 直线分割默认启用端点吸附与角度校正；按住 `Shift` 锁定 0°、45° 或 90°
-- 画布工具栏可开启细密图片参考网格，网格不会出现在导出结果
-- 分割线可选中、拖动端点、单独删除，支持撤销与重做
-- 裁剪、旋转、水平翻转和垂直翻转
-- 2×2、3×3、三栏，以及最多 12×12 的自定义等分网格
-- 整体适应、宽度铺满、高度铺满、5%–400% 缩放和滚动查看长图
-- 高清编辑预览与轻量分割计算分离，切片按原图像素输出
-- PNG、JPG、WebP 导出，支持尺寸倍率与 JPG/WebP 质量设置
-- 单张下载、保存到文件夹，以及浏览器本地 ZIP 打包下载
-- 全部图片处理在浏览器完成，默认不联网、不保存原图
+1. 打开[在线版本](https://qiejie-line-slice.chasenh.chatgpt.site/)，拖入、选择或粘贴一张图片。
+2. 选择“直线分割”或“裁剪画面”。直线模式下，从画布的一侧拖到另一侧；按住 `Shift` 可锁定直线角度。
+3. 用“适应”“宽度”“高度”或缩放按钮调整视图；需要定位时打开画布网格。
+4. 需要规则切图时，在“等分网格”中输入行列数并点击“生成”。
+5. 检查切片结果，选择格式、尺寸和质量，然后下载单张或打包 ZIP。
 
-## 如何使用
+## 本地开发
 
-1. 打开[在线版本](https://qiejie-line-slice.chasenh.chatgpt.site/)，拖入图片、选择文件，或直接粘贴剪贴板图片。
-2. 选择“直线分割”或“裁剪画面”。直线模式下从画布一侧拖到另一侧；需要严格水平、垂直或 45° 时按住 `Shift`。
-3. 使用“宽度”“高度”或“适应”调整视图；需要参考布局时在画布工具栏打开“网格”。
-4. 需要规则切图时，在“等分网格”输入行列数并生成。
-5. 检查切片预览，选择输出格式、尺寸和质量，然后下载单张、保存到文件夹或打包 ZIP。
-
-## 开发
-
-### 环境要求
-
-- Node.js `>=22.13.0`
-- npm
-
-### 本地启动
+环境要求：Node.js `>=22.13.0`、npm。
 
 ```bash
 git clone https://github.com/hcsdtk/qiejie.git
@@ -57,50 +54,53 @@ npm install
 npm run dev
 ```
 
-打开终端输出的本地地址即可。生产构建、测试和代码检查：
+常用命令：
 
 ```bash
-npm run build
-npm test
-npm run lint
+npm run build  # 生产构建
+npm test       # 构建并运行渲染测试
+npm run lint   # ESLint 检查
 ```
 
-核心编辑器和分割算法位于 `app/page.tsx`，全局视觉样式位于 `app/globals.css`。项目使用 React、Next/vinext 和 Cloudflare Workers 兼容构建；浏览器本地打包 ZIP 使用 `fflate`。
+主要代码位置：
 
-### 贡献
+- `app/page.tsx`：编辑器交互、画布绘制、分割算法与导出
+- `app/globals.css`：布局、工具栏、画布和响应式样式
+- `app/layout.tsx`：页面标题、描述和社交分享元信息
+- `tests/rendered-html.test.mjs`：页面渲染与产品能力回归检查
 
-欢迎提交 Issue 或 Pull Request。建议先说明使用场景、复现步骤和浏览器版本；涉及图像处理的改动请同时补充测试或示例。
+项目基于 React、Next/vinext 和 Cloudflare Workers 兼容构建，ZIP 打包使用 `fflate`。不需要数据库，也不需要上传服务。
 
 ## English
 
-### What is Qiejie?
+### Qiejie in one sentence
 
-Qiejie is a privacy-first image slicing tool that runs entirely in the browser. Drop in an image, draw split lines or generate an equal grid, and export independent PNG, JPG, or WebP slices. Your image stays on your device and is never uploaded by the app.
+Qiejie is a browser-only image slicer: draw boundaries or generate a grid, preview the pieces, and export them without uploading the original image.
 
-### Why it exists
+### Why Qiejie
 
-Most image splitters either require uploading the original file or only support a fixed grid. Qiejie keeps the workflow short and transparent: open an image, decide where the boundaries go, and download the result. It is useful for long screenshots, posters, comics, design assets, social-media tiles, and quick one-off edits.
+Many image splitters require an upload, force a fixed grid, or require a desktop install. Qiejie keeps the workflow local and flexible. It is useful for long screenshots, comics, posters, design mockups, social-media tiles, and quick asset preparation.
 
-### Highlights
+### Features
 
-- Drag-and-drop, file picker, and clipboard image input
-- Line splitting with endpoint snapping and angle correction enabled by default
-- Hold `Shift` to lock a line to 0°, 45°, or 90°
-- Optional fine reference grid over the image (never exported)
-- Crop, rotate, flip, undo/redo, and editable split lines
-- Presets for 2×2, 3×3, three-column, and custom grids up to 12×12
-- Fit, fit width, fit height, manual zoom, and scrollable long-image editing
-- High-resolution editor preview with original-pixel slice output
-- PNG, JPG, and WebP export with scale and quality controls
-- Individual downloads, folder saving, and local ZIP packaging
+- Drag-and-drop, file picker, and clipboard input
+- Line splitting with endpoint snapping and angle correction
+- Hold `Shift` to lock horizontal, vertical, or 45° lines
+- Optional fine reference grid that is never exported
+- Editable split lines with undo and redo
+- Crop, rotate, flip, equal-grid presets, and custom grids up to 12×12
+- Fit, fit width, fit height, manual zoom, and long-image scrolling
+- High-resolution editing with original-pixel output
+- PNG, JPG, WebP, individual downloads, folder saving, and local ZIP export
+- No upload, account, or server-side image processing
 
 ### Usage
 
 1. Open the [web app](https://qiejie-line-slice.chasenh.chatgpt.site/) and drop, select, or paste an image.
-2. Choose line splitting or crop mode. In line mode, drag from one edge of the canvas to the other. Hold `Shift` for a strict straight angle.
-3. Use Fit, Width, Height, or the zoom controls to inspect the image. Toggle the canvas grid when you need layout references.
-4. Generate an equal grid when you need regular rows and columns.
-5. Pick the output format, scale, and quality, then download individual slices or a ZIP archive.
+2. Choose line splitting or crop mode. Hold `Shift` when you need a strict angle.
+3. Use Fit, Width, Height, or zoom controls to inspect the image. Toggle the canvas grid when useful.
+4. Generate a regular grid when you need equal rows and columns.
+5. Choose the output format, scale, and quality, then download slices or a ZIP archive.
 
 ### Development
 
@@ -111,12 +111,12 @@ npm install
 npm run dev
 ```
 
-Use `npm run build` for a production build, `npm test` for the build plus rendered-HTML checks, and `npm run lint` for static analysis. The editor lives in `app/page.tsx`; shared styles are in `app/globals.css`.
+Run `npm run build`, `npm test`, and `npm run lint` before submitting changes. The editor is in `app/page.tsx`; shared styles are in `app/globals.css`.
 
-## Screenshots
+## 贡献
 
-The editor screenshot above shows line guides, the canvas toolbar, zoom presets, and the scrollable tool panel. `public/og.png` is the social preview used by the deployed site.
+欢迎提交 [Issue](https://github.com/hcsdtk/qiejie/issues) 或 Pull Request。请尽量附上浏览器版本、复现步骤和示例图片；涉及图像处理的改动请补充测试。
 
 ## License
 
-No license has been selected yet. If you plan to reuse or redistribute the project, please open an issue first so the intended license can be documented.
+项目暂未选择开源许可证。如需分发或二次使用，请先提交 Issue 讨论授权方式。

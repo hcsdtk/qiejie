@@ -31,7 +31,7 @@ export async function generateMetadata(): Promise<Metadata> {
       description: "Draw lines, split images, and export locally. Your image stays in the browser.",
       type: "website",
       url: origin,
-      images: [{ url: `${origin}/og.png`, width: 1731, height: 909, alt: "Qiejie browser image slicer" }],
+      images: [{ url: `${origin}/og.png`, width: 3590, height: 1828, alt: "Qiejie browser image slicer" }],
     },
     twitter: {
       card: "summary_large_image",
