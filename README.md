@@ -32,6 +32,7 @@ Qiejie（切界）把图片分割变成一个简单的浏览器工作流：打�
 - 2×2、3×3、三栏和最多 12×12 自定义等分网格
 - 适应、宽度铺满、高度铺满和 5%–400% 手动缩放
 - 高清编辑预览，按原图像素生成切片
+- 大图分割识别使用 Web Worker，显示进度并支持取消
 - PNG、JPG、WebP 导出，支持尺寸倍率和质量设置
 - 单张下载、保存到文件夹、本地 ZIP 打包下载
 
@@ -65,6 +66,8 @@ npm run lint   # ESLint 检查
 主要代码位置：
 
 - `app/page.tsx`：编辑器交互、画布绘制、分割算法与导出
+- `lib/splitter.ts`：区域识别算法与网格分割上限
+- `workers/splitter.worker.ts`：后台分割任务、进度和取消通信
 - `app/globals.css`：布局、工具栏、画布和响应式样式
 - `app/layout.tsx`：页面标题、描述和社交分享元信息
 - `tests/rendered-html.test.mjs`：页面渲染与产品能力回归检查
@@ -91,6 +94,7 @@ Many image splitters require an upload, force a fixed grid, or require a desktop
 - Crop, rotate, flip, equal-grid presets, and custom grids up to 12×12
 - Fit, fit width, fit height, manual zoom, and long-image scrolling
 - High-resolution editing with original-pixel output
+- Large-image region detection runs in a Web Worker with progress and cancellation
 - PNG, JPG, WebP, individual downloads, folder saving, and local ZIP export
 - No upload, account, or server-side image processing
 

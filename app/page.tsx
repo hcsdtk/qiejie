@@ -11,6 +11,9 @@ import {
   useState,
 } from "react";
 import { zip } from "fflate";
+import { SplitCancelledError } from "../lib/splitter";
+import type { SplitProgress } from "../lib/splitter";
+import type { SplitWorkerRequest, SplitWorkerResponse } from "../lib/splitter-worker-protocol";
 
 type Point = { x: number; y: number };
 type CutLine = { id: number; start: Point; end: Point };
@@ -348,40 +351,6 @@ function drawCropOverlay(context: CanvasRenderingContext2D, crop: CropSelection)
   context.restore();
 }
 
-function rasterizeLine(mask: Uint8Array, width: number, height: number, line: CutLine) {
-  let x0 = Math.round(line.start.x);
-  let y0 = Math.round(line.start.y);
-  const x1 = Math.round(line.end.x);
-  const y1 = Math.round(line.end.y);
-  const dx = Math.abs(x1 - x0);
-  const sx = x0 < x1 ? 1 : -1;
-  const dy = -Math.abs(y1 - y0);
-  const sy = y0 < y1 ? 1 : -1;
-  let error = dx + dy;
-  const radius = Math.max(1, Math.round(Math.max(width, height) / 1_600));
-
-  while (true) {
-    for (let oy = -radius; oy <= radius; oy += 1) {
-      for (let ox = -radius; ox <= radius; ox += 1) {
-        if (ox * ox + oy * oy > radius * radius + 1) continue;
-        const x = x0 + ox;
-        const y = y0 + oy;
-        if (x >= 0 && x < width && y >= 0 && y < height) mask[y * width + x] = 1;
-      }
-    }
-    if (x0 === x1 && y0 === y1) break;
-    const doubled = error * 2;
-    if (doubled >= dy) {
-      error += dy;
-      x0 += sx;
-    }
-    if (doubled <= dx) {
-      error += dx;
-      y0 += sy;
-    }
-  }
-}
-
 function canvasToBlob(canvas: HTMLCanvasElement, type: ExportFormat = "image/png", quality = 0.92) {
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
@@ -405,6 +374,52 @@ function clampViewScale(scale: number) {
   return Math.max(MIN_VIEW_SCALE, Math.min(MAX_VIEW_SCALE, scale));
 }
 
+function yieldToMainThread() {
+  return new Promise<void>((resolve) => window.setTimeout(resolve, 0));
+}
+
+type CompletedSplitResponse = Extract<SplitWorkerResponse, { type: "complete" }>;
+
+function runSplitInWorker(
+  worker: Worker,
+  request: Extract<SplitWorkerRequest, { type: "split" }>,
+  onProgress: (progress: SplitProgress) => void,
+) {
+  return new Promise<{ labels: Int32Array; components: CompletedSplitResponse["components"] }>((resolve, reject) => {
+    let settled = false;
+    const cleanup = () => {
+      worker.removeEventListener("message", handleMessage);
+      worker.removeEventListener("error", handleError);
+    };
+    const handleError = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      reject(new Error("分割引擎启动失败，请刷新页面后重试"));
+    };
+    const handleMessage = (event: MessageEvent<SplitWorkerResponse>) => {
+      const message = event.data;
+      if (message.jobId !== request.jobId || settled) return;
+      if (message.type === "progress") {
+        onProgress(message.progress);
+        return;
+      }
+      settled = true;
+      cleanup();
+      if (message.type === "complete") {
+        resolve({ labels: new Int32Array(message.labels), components: message.components });
+      } else if (message.type === "cancelled") {
+        reject(new SplitCancelledError());
+      } else {
+        reject(new Error(message.message));
+      }
+    };
+    worker.addEventListener("message", handleMessage);
+    worker.addEventListener("error", handleError);
+    worker.postMessage(request);
+  });
+}
+
 export default function Home() {
   const editorCanvasRef = useRef<HTMLCanvasElement>(null);
   const canvasViewportRef = useRef<HTMLDivElement>(null);
@@ -412,6 +427,10 @@ export default function Home() {
   const processingCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const sourceImageRef = useRef<HTMLImageElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const splitterWorkerRef = useRef<Worker | null>(null);
+  const splitJobIdRef = useRef(0);
+  const activeSplitJobIdRef = useRef<number | null>(null);
+  const cancelRequestedRef = useRef(false);
   const lineIdRef = useRef(1);
   const gestureRef = useRef<CanvasGesture | null>(null);
   const [imageDocument, setImageDocument] = useState<ImageDocument | null>(null);
@@ -434,6 +453,7 @@ export default function Home() {
   const [pieces, setPieces] = useState<Piece[]>([]);
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [canCancelProcessing, setCanCancelProcessing] = useState(false);
   const [processLabel, setProcessLabel] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"fit" | "width" | "height" | "custom">("fit");
@@ -445,6 +465,15 @@ export default function Home() {
       current.forEach((piece) => URL.revokeObjectURL(piece.url));
       return [];
     });
+  }, []);
+
+  useEffect(() => {
+    const worker = new Worker(new URL("../workers/splitter.worker.ts", import.meta.url), { type: "module" });
+    splitterWorkerRef.current = worker;
+    return () => {
+      worker.terminate();
+      splitterWorkerRef.current = null;
+    };
   }, []);
 
   const loadImageFile = useCallback(
@@ -897,8 +926,8 @@ export default function Home() {
 
   const applyGrid = (rows = gridRows, columns = gridColumns) => {
     if (!imageInfo) return;
-    const safeRows = Math.max(1, Math.min(12, Math.round(rows)));
-    const safeColumns = Math.max(1, Math.min(12, Math.round(columns)));
+    const safeRows = Number.isFinite(rows) ? Math.max(1, Math.min(12, Math.round(rows))) : 1;
+    const safeColumns = Number.isFinite(columns) ? Math.max(1, Math.min(12, Math.round(columns))) : 1;
     pushUndoSnapshot(currentSnapshot());
     const nextLines: CutLine[] = [];
     for (let column = 1; column < safeColumns; column += 1) {
@@ -957,133 +986,72 @@ export default function Home() {
     setExactViewScale(viewScale * factor);
   };
 
+  const cancelSplit = () => {
+    if (!canCancelProcessing) return;
+    cancelRequestedRef.current = true;
+    setProcessLabel("正在取消…");
+    const jobId = activeSplitJobIdRef.current;
+    if (jobId !== null) {
+      splitterWorkerRef.current?.postMessage({ type: "cancel", jobId });
+    }
+  };
+
   const splitImage = async () => {
     const processingCanvas = processingCanvasRef.current;
     const sourceImage = sourceImageRef.current;
-    if (!processingCanvas || !sourceImage || !imageDocument || !imageInfo || !lines.length || isProcessing) return;
+    const splitWorker = splitterWorkerRef.current;
+    if (isProcessing) return;
+    if (!splitWorker) {
+      setMessage("分割引擎正在初始化，请稍后再试");
+      return;
+    }
+    if (!processingCanvas || !sourceImage || !imageDocument || !imageInfo || !lines.length) return;
     setIsProcessing(true);
+    setCanCancelProcessing(true);
     setMessage(null);
     clearPieces();
     setProcessLabel("正在识别分割区域…");
+    cancelRequestedRef.current = false;
+    const jobId = splitJobIdRef.current + 1;
+    splitJobIdRef.current = jobId;
+    activeSplitJobIdRef.current = jobId;
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
+    const created: Piece[] = [];
+    let committed = false;
     try {
+      if (cancelRequestedRef.current) throw new SplitCancelledError();
       const { width, height } = processingCanvas;
       const lineScaleX = (width - 1) / Math.max(1, imageInfo.width - 1);
       const lineScaleY = (height - 1) / Math.max(1, imageInfo.height - 1);
       const processingLines = lines.map((line) => ({
-        ...line,
         start: { x: line.start.x * lineScaleX, y: line.start.y * lineScaleY },
         end: { x: line.end.x * lineScaleX, y: line.end.y * lineScaleY },
       }));
+      const splitResult = await runSplitInWorker(
+        splitWorker,
+        { type: "split", jobId, width, height, lines: processingLines },
+        (progress) => {
+          const phaseLabel = progress.phase === "rasterize"
+            ? "正在绘制分割边界"
+            : progress.phase === "regions"
+              ? "正在识别分割区域"
+              : "正在整理区域边缘";
+          setProcessLabel(`${phaseLabel} ${Math.round(progress.progress * 100)}%`);
+        },
+      );
+      activeSplitJobIdRef.current = null;
+      if (cancelRequestedRef.current) throw new SplitCancelledError();
+
       const total = width * height;
-      const barrier = new Uint8Array(total);
-      processingLines.forEach((line) => rasterizeLine(barrier, width, height, line));
-
-      const labels = new Int32Array(total);
-      labels.fill(-1);
-      const queue = new Int32Array(total);
-      const components: Array<{
-        label: number;
-        count: number;
-        minX: number;
-        minY: number;
-        maxX: number;
-        maxY: number;
-      }> = [];
-
-      for (let seed = 0; seed < total; seed += 1) {
-        if (barrier[seed] || labels[seed] !== -1) continue;
-        const label = components.length;
-        let head = 0;
-        let tail = 0;
-        queue[tail++] = seed;
-        labels[seed] = label;
-        let count = 0;
-        let minX = width;
-        let minY = height;
-        let maxX = 0;
-        let maxY = 0;
-
-        while (head < tail) {
-          const index = queue[head++];
-          const x = index % width;
-          const y = (index / width) | 0;
-          count += 1;
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-
-          if (x > 0) {
-            const next = index - 1;
-            if (!barrier[next] && labels[next] === -1) {
-              labels[next] = label;
-              queue[tail++] = next;
-            }
-          }
-          if (x < width - 1) {
-            const next = index + 1;
-            if (!barrier[next] && labels[next] === -1) {
-              labels[next] = label;
-              queue[tail++] = next;
-            }
-          }
-          if (y > 0) {
-            const next = index - width;
-            if (!barrier[next] && labels[next] === -1) {
-              labels[next] = label;
-              queue[tail++] = next;
-            }
-          }
-          if (y < height - 1) {
-            const next = index + width;
-            if (!barrier[next] && labels[next] === -1) {
-              labels[next] = label;
-              queue[tail++] = next;
-            }
-          }
-        }
-        components.push({ label, count, minX, minY, maxX, maxY });
-        if (components.length > 80) throw new Error("分割区域超过 80 个，请减少线条后再试");
-      }
-
-      if (components.length < 2) {
-        throw new Error("线条还没有把图片切开。请让线条连接两侧边缘，或与已有线条相交");
-      }
-
-      // Put the thin guide-line pixels back into their closest region, so exported pieces have no seams.
-      for (let index = 0; index < total; index += 1) {
-        if (!barrier[index]) continue;
-        const x = index % width;
-        const y = (index / width) | 0;
-        let assigned = -1;
-        for (let radius = 1; radius <= 8 && assigned < 0; radius += 1) {
-          const points = [
-            [x - radius, y],
-            [x + radius, y],
-            [x, y - radius],
-            [x, y + radius],
-          ];
-          for (const [px, py] of points) {
-            if (px >= 0 && px < width && py >= 0 && py < height) {
-              const candidate = labels[py * width + px];
-              if (candidate >= 0) {
-                assigned = candidate;
-                break;
-              }
-            }
-          }
-        }
-        labels[index] = assigned >= 0 ? assigned : 0;
-      }
+      const { labels, components } = splitResult;
 
       const sorted = [...components].sort((a, b) => a.minY - b.minY || a.minX - b.minX);
-      const created: Piece[] = [];
       const processingScaleX = width / imageDocument.width;
       const processingScaleY = height / imageDocument.height;
 
       for (let pieceIndex = 0; pieceIndex < sorted.length; pieceIndex += 1) {
+        if (cancelRequestedRef.current) throw new SplitCancelledError();
         const component = sorted[pieceIndex];
         setProcessLabel(`正在按原图生成切片 ${pieceIndex + 1} / ${sorted.length}…`);
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
@@ -1134,6 +1102,10 @@ export default function Home() {
             mask.data[targetPixel * 4 + 2] = 255;
             mask.data[targetPixel * 4 + 3] = 255;
           }
+          if ((y - component.minY) % 32 === 0) {
+            if (cancelRequestedRef.current) throw new SplitCancelledError();
+            await yieldToMainThread();
+          }
         }
         maskContext.putImageData(mask, 0, 0);
         context.globalCompositeOperation = "destination-in";
@@ -1164,12 +1136,23 @@ export default function Home() {
         });
       }
       setPieces(created);
+      committed = true;
       const formatLabel = EXPORT_FORMATS.find((format) => format.value === exportFormat)?.label ?? "图片";
       setMessage(`完成：已按原图生成 ${created.length} 个 ${formatLabel} 切片`);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "分割失败，请调整线条后再试");
+      if (!committed) created.forEach((piece) => URL.revokeObjectURL(piece.url));
+      setMessage(
+        error instanceof SplitCancelledError
+          ? "已取消分割"
+          : error instanceof Error
+            ? error.message
+            : "分割失败，请调整线条后再试",
+      );
     } finally {
+      activeSplitJobIdRef.current = null;
+      cancelRequestedRef.current = false;
       setIsProcessing(false);
+      setCanCancelProcessing(false);
       setProcessLabel("");
     }
   };
@@ -1179,6 +1162,7 @@ export default function Home() {
   const downloadZip = async () => {
     if (!pieces.length || !imageInfo) return;
     setIsProcessing(true);
+    setCanCancelProcessing(false);
     setProcessLabel("正在打包全部切片…");
     try {
       const files: Record<string, Uint8Array> = {};
@@ -1206,7 +1190,9 @@ export default function Home() {
   const saveAllFiles = async () => {
     if (!pieces.length || !imageInfo) return;
     setIsProcessing(true);
-    setProcessLabel("正在保存全部 PNG…");
+    setCanCancelProcessing(false);
+    const formatLabel = EXPORT_FORMATS.find((format) => format.value === exportFormat)?.label ?? "图片";
+    setProcessLabel(`正在保存全部 ${formatLabel}…`);
     try {
       const picker = (
         window as typeof window & { showDirectoryPicker?: () => Promise<DirectoryHandleLike> }
@@ -1338,10 +1324,10 @@ export default function Home() {
           <div className="grid-builder">
             <div className="subsection-label"><span>等分网格</span><small>最多 12 × 12</small></div>
             <div className="grid-fields">
-              <label>行<input type="number" min="1" max="12" value={gridRows} onChange={(event) => setGridRows(Number(event.target.value))} /></label>
+              <label>行<input type="number" min="1" max="12" value={Number.isFinite(gridRows) ? gridRows : ""} onChange={(event) => setGridRows(event.target.value === "" ? Number.NaN : Number(event.target.value))} /></label>
               <span>×</span>
-              <label>列<input type="number" min="1" max="12" value={gridColumns} onChange={(event) => setGridColumns(Number(event.target.value))} /></label>
-              <button type="button" onClick={() => applyGrid()} disabled={!imageInfo || (gridRows <= 1 && gridColumns <= 1)}>生成</button>
+              <label>列<input type="number" min="1" max="12" value={Number.isFinite(gridColumns) ? gridColumns : ""} onChange={(event) => setGridColumns(event.target.value === "" ? Number.NaN : Number(event.target.value))} /></label>
+              <button type="button" onClick={() => applyGrid()} disabled={!imageInfo || !Number.isFinite(gridRows) || !Number.isFinite(gridColumns) || (gridRows <= 1 && gridColumns <= 1)}>生成</button>
             </div>
             <div className="grid-presets">
               <button type="button" onClick={() => applyGrid(2, 2)} disabled={!imageInfo}>2 × 2</button>
@@ -1509,10 +1495,13 @@ export default function Home() {
               </div>
             )}
             {isProcessing && (
-              <div className="processing-overlay" role="status">
+              <div className="processing-overlay" role="status" aria-live="polite">
                 <span className="spinner" />
                 <strong>{processLabel}</strong>
                 <small>复杂图片可能需要几秒钟</small>
+                {canCancelProcessing && (
+                  <button type="button" className="processing-cancel" onClick={cancelSplit}>取消处理</button>
+                )}
               </div>
             )}
           </div>

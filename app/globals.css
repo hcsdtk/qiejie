@@ -231,6 +231,8 @@ button:focus-visible, canvas:focus-visible { outline: 3px solid rgba(71, 115, 25
 .processing-overlay { position: absolute; inset: 0; background: rgba(245,244,239,.88); backdrop-filter: blur(4px); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 5; }
 .processing-overlay strong { font-size: 13px; margin-top: 14px; }
 .processing-overlay small { color: #8f8c84; font-size: 9px; margin-top: 6px; }
+.processing-cancel { margin-top: 16px; min-height: 30px; padding: 0 13px; border: 1px solid var(--soft-line); border-radius: 5px; background: white; color: #77746c; font-size: 9px; font-weight: 700; }
+.processing-cancel:hover { border-color: #aaa69d; color: var(--ink); }
 .spinner { width: 31px; height: 31px; border: 3px solid #dad7cf; border-top-color: var(--accent); border-radius: 50%; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
