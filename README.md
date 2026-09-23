@@ -4,7 +4,7 @@
 
 > 画线，切图。一个不上传原图的纯浏览器图片分割工具。
 
-[在线使用](https://qiejie-line-slice.chasenh.chatgpt.site/) · [GitHub](https://github.com/hcsdtk/qiejie) · [反馈问题](https://github.com/hcsdtk/qiejie/issues)
+[在线使用](https://qiejie.chasenh.chatgpt.site/) · [GitHub](https://github.com/hcsdtk/qiejie) · [反馈问题](https://github.com/hcsdtk/qiejie/issues)
 
 ## 这是什么
 
@@ -38,7 +38,7 @@ Qiejie（切界）把图片分割变成一个简单的浏览器工作流：打�
 
 ## 使用方法
 
-1. 打开[在线版本](https://qiejie-line-slice.chasenh.chatgpt.site/)，拖入、选择或粘贴一张图片。
+1. 打开[在线版本](https://qiejie.chasenh.chatgpt.site/)，拖入、选择或粘贴一张图片。
 2. 选择“直线分割”或“裁剪画面”。直线模式下，从画布的一侧拖到另一侧；按住 `Shift` 可锁定直线角度。
 3. 用“适应”“宽度”“高度”或缩放按钮调整视图；需要定位时打开画布网格。
 4. 需要规则切图时，在“等分网格”中输入行列数并点击“生成”。
@@ -100,7 +100,7 @@ Many image splitters require an upload, force a fixed grid, or require a desktop
 
 ### Usage
 
-1. Open the [web app](https://qiejie-line-slice.chasenh.chatgpt.site/) and drop, select, or paste an image.
+1. Open the [web app](https://qiejie.chasenh.chatgpt.site/) and drop, select, or paste an image.
 2. Choose line splitting or crop mode. Hold `Shift` when you need a strict angle.
 3. Use Fit, Width, Height, or zoom controls to inspect the image. Toggle the canvas grid when useful.
 4. Generate a regular grid when you need equal rows and columns.
